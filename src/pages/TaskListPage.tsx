@@ -5,11 +5,11 @@ import TaskCard from '../components/TaskCard'
 
 export default function TaskListPage() {
   const navigate = useNavigate()
-  const { tasks, setTasks } = useSyncStore()
+  const { tasks, mergeTasks } = useSyncStore()
 
   async function fetchTasks() {
     const loaded = await window.electronAPI.getTasks()
-    setTasks(loaded)
+    mergeTasks(loaded)
   }
 
   useEffect(() => {
@@ -17,12 +17,12 @@ export default function TaskListPage() {
   }, [])
 
   return (
-    <div className="min-h-screen p-6">
+    <div className="p-6">
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-white">OpenSync</h1>
-          <p className="text-slate-400 text-sm mt-0.5">File synchronization powered by rclone</p>
+          <h1 className="text-2xl font-bold text-white">Tasks</h1>
+          <p className="text-slate-400 text-sm mt-0.5">Manage your sync tasks</p>
         </div>
         <button
           onClick={() => navigate('/tasks/new')}

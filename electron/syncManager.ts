@@ -5,18 +5,36 @@ import type { SyncTask, RcloneLogLine, ProgressPayload } from '../src/types'
 // Map of taskId → active ChildProcess
 const activeProcesses = new Map<string, ChildProcess>()
 
+interface SyncCallbacks {
+  onComplete?: () => void
+  onError?: () => void
+}
+
+/** Strips surrounding quotes that users sometimes paste into path fields. */
+function stripSurroundingQuotes(s: string): string {
+  return s.replace(/^(['"])(.*)\1$/, '$2').trim()
+}
+
+/** Wraps an arg in double-quotes for display when it contains spaces. */
+function shellQuote(s: string): string {
+  return s.includes(' ') ? `"${s}"` : s
+}
+
 /**
  * Starts a rclone sync/copy process for the given task.
  * Streams stdout/stderr, parses each line as JSON, and fires IPC events.
  */
-export function startSync(taskId: string, task: SyncTask, win: BrowserWindow): void {
+export function startSync(taskId: string, task: SyncTask, win: BrowserWindow, callbacks?: SyncCallbacks): void {
   if (isRunning(taskId)) return
 
+  // Strip any accidental surrounding quotes before passing to spawn
+  const source      = stripSurroundingQuotes(task.source)
+  const destination = stripSurroundingQuotes(task.destination)
+
   const args = [
-    task.type,        // 'sync' or 'copy'
-    task.source,
-    task.destination,
-    '--progress',
+    task.type,    // 'sync' or 'copy'
+    source,
+    destination,
     '--stats=1s',
     '--use-json-log',
     '--verbose',
@@ -24,6 +42,10 @@ export function startSync(taskId: string, task: SyncTask, win: BrowserWindow): v
 
   const proc = spawn('rclone', args, { stdio: ['ignore', 'pipe', 'pipe'] })
   activeProcesses.set(taskId, proc)
+
+  // Build a display-friendly command with shell-quoted args
+  const command = `rclone ${args.map(shellQuote).join(' ')}`
+  win.webContents.send('sync:started', { taskId, command })
 
   // Buffer to accumulate incomplete lines across chunk boundaries
   let stdoutBuffer = ''
@@ -46,7 +68,17 @@ export function startSync(taskId: string, task: SyncTask, win: BrowserWindow): v
         }
         win.webContents.send('sync:progress', payload)
       } catch {
-        // Non-JSON line — ignore
+        // Non-JSON line — forward as a warning so it appears in the log viewer
+        const payload: ProgressPayload = {
+          taskId,
+          stats: null,
+          log: {
+            level: 'warning',
+            msg: trimmed,
+            time: new Date().toISOString(),
+          },
+        }
+        win.webContents.send('sync:progress', payload)
       }
     }
   }
@@ -61,17 +93,20 @@ export function startSync(taskId: string, task: SyncTask, win: BrowserWindow): v
     activeProcesses.delete(taskId)
     if (code === 0) {
       win.webContents.send('sync:complete', { taskId })
+      callbacks?.onComplete?.()
     } else {
       win.webContents.send('sync:error', {
         taskId,
         message: `rclone exited with code ${code}`,
       })
+      callbacks?.onError?.()
     }
   })
 
   proc.on('error', (err) => {
     activeProcesses.delete(taskId)
     win.webContents.send('sync:error', { taskId, message: err.message })
+    callbacks?.onError?.()
   })
 }
 

@@ -1,15 +1,19 @@
 import { useEffect } from 'react'
 import { useSyncStore } from '../store/useSyncStore'
-import type { ProgressPayload, CompletePayload, ErrorPayload } from '../types'
+import type { ProgressPayload, StartedPayload, CompletePayload, ErrorPayload } from '../types'
 
 /**
  * Registers IPC event listeners once for the lifetime of the app.
  * Must be called at the top of App.tsx so listeners are always active.
  */
 export function useSyncEvents(): void {
-  const { updateTaskStatus, setProgress, appendLog } = useSyncStore()
+  const { updateTaskStatus, setProgress, appendLog, setCommand } = useSyncStore()
 
   useEffect(() => {
+    window.electronAPI.onStarted((payload: StartedPayload) => {
+      setCommand(payload.taskId, payload.command)
+    })
+
     window.electronAPI.onProgress((payload: ProgressPayload) => {
       // Update progress panel if we have stats
       if (payload.stats) {
@@ -48,6 +52,7 @@ export function useSyncEvents(): void {
 
     // Cleanup listeners on unmount to prevent duplicates (e.g. React StrictMode)
     return () => {
+      window.electronAPI.removeAllListeners('sync:started')
       window.electronAPI.removeAllListeners('sync:progress')
       window.electronAPI.removeAllListeners('sync:complete')
       window.electronAPI.removeAllListeners('sync:error')

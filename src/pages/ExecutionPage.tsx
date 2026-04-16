@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useSyncStore } from '../store/useSyncStore'
 import ProgressPanel from '../components/ProgressPanel'
@@ -7,21 +7,27 @@ import LogViewer from '../components/LogViewer'
 export default function ExecutionPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
-  const tasks = useSyncStore((s) => s.tasks)
+  const tasks    = useSyncStore((s) => s.tasks)
+  const logs     = useSyncStore((s) => s.logs)
+  const commands = useSyncStore((s) => s.commands)
   const { updateTaskStatus, clearLogs } = useSyncStore()
-  const [started, setStarted] = useState(false)
+  // Tracks whether *this mount* already triggered a startSync call
+  const launchedRef = useRef(false)
 
   const task = tasks.find((t) => t.id === id)
 
   useEffect(() => {
-    if (!id || started) return
+    if (!id || launchedRef.current) return
+    launchedRef.current = true
 
-    // Start sync if the task exists and is in running state
-    // (status was set to 'running' by TaskCard before navigation)
+    // If the task already has logs it means we navigated back to a running task —
+    // just show the live state, don't restart or wipe anything.
+    const alreadyRunning = (logs[id]?.length ?? 0) > 0
+    if (alreadyRunning) return
+
     clearLogs(id)
     window.electronAPI.startSync(id)
-    setStarted(true)
-  }, [id, started, clearLogs])
+  }, [id, logs, clearLogs])
 
   async function handleStop() {
     if (!id) return
@@ -33,7 +39,7 @@ export default function ExecutionPage() {
     return (
       <div className="p-6 text-slate-400">
         Task not found.{' '}
-        <button className="text-blue-400 underline" onClick={() => navigate('/')}>
+        <button className="text-blue-400 underline" onClick={() => navigate('/tasks')}>
           Go back
         </button>
       </div>
@@ -43,11 +49,11 @@ export default function ExecutionPage() {
   const isRunning = task.status === 'running'
 
   return (
-    <div className="min-h-screen p-6 max-w-2xl mx-auto">
+    <div className="min-h-screen p-6 max-w-4xl mx-auto">
       {/* Header */}
       <div className="flex items-center gap-3 mb-6">
         <button
-          onClick={() => navigate('/')}
+          onClick={() => navigate('/tasks')}
           className="text-slate-400 hover:text-white transition-colors"
         >
           ← Back
@@ -71,6 +77,15 @@ export default function ExecutionPage() {
       {/* Logs */}
       <div className="mb-6">
         <h2 className="text-sm font-semibold text-slate-400 uppercase tracking-wide mb-2">Logs</h2>
+
+        {/* rclone command that was executed */}
+        {commands[task.id] && (
+          <div className="flex items-start gap-2 rounded-lg bg-slate-950 border border-slate-700 px-4 py-2.5 mb-2 font-mono text-xs text-slate-400 overflow-x-auto">
+            <span className="text-slate-600 select-none shrink-0">$</span>
+            <span className="text-slate-300 break-all">{commands[task.id]}</span>
+          </div>
+        )}
+
         <LogViewer taskId={task.id} />
       </div>
 
@@ -85,7 +100,7 @@ export default function ExecutionPage() {
           </button>
         )}
         <button
-          onClick={() => navigate('/')}
+          onClick={() => navigate('/tasks')}
           className="px-5 py-2 rounded-lg bg-slate-700 text-slate-300 text-sm hover:bg-slate-600 transition-colors"
         >
           {isRunning ? 'Back (sync continues)' : 'Back to Tasks'}

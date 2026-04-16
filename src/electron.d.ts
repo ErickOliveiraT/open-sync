@@ -1,6 +1,7 @@
 import type {
   SyncTask,
   ProgressPayload,
+  StartedPayload,
   CompletePayload,
   ErrorPayload,
 } from './types'
@@ -19,7 +20,11 @@ export interface ElectronAPI {
   // Native dialog
   openFolder: () => Promise<string | null>
 
+  // Remotes
+  listRemotes: () => Promise<string[]>
+
   // Push events from main process
+  onStarted: (cb: (payload: StartedPayload) => void) => void
   onProgress: (cb: (payload: ProgressPayload) => void) => void
   onComplete: (cb: (payload: CompletePayload) => void) => void
   onError: (cb: (payload: ErrorPayload) => void) => void

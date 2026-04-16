@@ -5,21 +5,30 @@ const fs = require("fs");
 const crypto = require("crypto");
 const child_process = require("child_process");
 const activeProcesses = /* @__PURE__ */ new Map();
-function startSync(taskId, task, win) {
+function stripSurroundingQuotes(s) {
+  return s.replace(/^(['"])(.*)\1$/, "$2").trim();
+}
+function shellQuote(s) {
+  return s.includes(" ") ? `"${s}"` : s;
+}
+function startSync(taskId, task, win, callbacks) {
   var _a, _b;
   if (isRunning(taskId)) return;
+  const source = stripSurroundingQuotes(task.source);
+  const destination = stripSurroundingQuotes(task.destination);
   const args = [
     task.type,
     // 'sync' or 'copy'
-    task.source,
-    task.destination,
-    "--progress",
+    source,
+    destination,
     "--stats=1s",
     "--use-json-log",
     "--verbose"
   ];
   const proc = child_process.spawn("rclone", args, { stdio: ["ignore", "pipe", "pipe"] });
   activeProcesses.set(taskId, proc);
+  const command = `rclone ${args.map(shellQuote).join(" ")}`;
+  win.webContents.send("sync:started", { taskId, command });
   let stdoutBuffer = "";
   let stderrBuffer = "";
   function handleChunk(buffer, chunk) {
@@ -38,6 +47,16 @@ function startSync(taskId, task, win) {
         };
         win.webContents.send("sync:progress", payload);
       } catch {
+        const payload = {
+          taskId,
+          stats: null,
+          log: {
+            level: "warning",
+            msg: trimmed,
+            time: (/* @__PURE__ */ new Date()).toISOString()
+          }
+        };
+        win.webContents.send("sync:progress", payload);
       }
     }
   }
@@ -46,19 +65,24 @@ function startSync(taskId, task, win) {
   (_a = proc.stdout) == null ? void 0 : _a.on("data", (chunk) => handleChunk(stdoutBuf, chunk));
   (_b = proc.stderr) == null ? void 0 : _b.on("data", (chunk) => handleChunk(stderrBuf, chunk));
   proc.on("close", (code) => {
+    var _a2, _b2;
     activeProcesses.delete(taskId);
     if (code === 0) {
       win.webContents.send("sync:complete", { taskId });
+      (_a2 = callbacks == null ? void 0 : callbacks.onComplete) == null ? void 0 : _a2.call(callbacks);
     } else {
       win.webContents.send("sync:error", {
         taskId,
         message: `rclone exited with code ${code}`
       });
+      (_b2 = callbacks == null ? void 0 : callbacks.onError) == null ? void 0 : _b2.call(callbacks);
     }
   });
   proc.on("error", (err) => {
+    var _a2;
     activeProcesses.delete(taskId);
     win.webContents.send("sync:error", { taskId, message: err.message });
+    (_a2 = callbacks == null ? void 0 : callbacks.onError) == null ? void 0 : _a2.call(callbacks);
   });
 }
 function stopSync(taskId) {
@@ -96,8 +120,8 @@ function saveTasks(tasks) {
 let mainWindow = null;
 function createWindow() {
   mainWindow = new electron.BrowserWindow({
-    width: 1200,
-    height: 700,
+    width: 1245,
+    height: 800,
     minWidth: 720,
     minHeight: 500,
     title: "OpenSync",
@@ -144,10 +168,39 @@ function registerIpcHandlers() {
     if (isRunning(taskId)) return;
     const task = loadTasks().find((t) => t.id === taskId);
     if (!task) return;
-    startSync(taskId, task, mainWindow);
+    startSync(taskId, task, mainWindow, {
+      onComplete: () => {
+        const all = loadTasks();
+        const idx = all.findIndex((t) => t.id === taskId);
+        if (idx !== -1) {
+          all[idx].lastRunAt = (/* @__PURE__ */ new Date()).toISOString();
+          saveTasks(all);
+        }
+      },
+      onError: () => {
+        const all = loadTasks();
+        const idx = all.findIndex((t) => t.id === taskId);
+        if (idx !== -1) {
+          all[idx].lastRunAt = (/* @__PURE__ */ new Date()).toISOString();
+          saveTasks(all);
+        }
+      }
+    });
   });
   electron.ipcMain.handle("sync:stop", (_, taskId) => {
     stopSync(taskId);
+  });
+  electron.ipcMain.handle("remotes:list", () => {
+    return new Promise((resolve) => {
+      child_process.execFile("rclone", ["listremotes"], (error, stdout) => {
+        if (error) {
+          resolve([]);
+          return;
+        }
+        const remotes = stdout.split("\n").map((l) => l.trim()).filter((l) => l.length > 0);
+        resolve(remotes);
+      });
+    });
   });
   electron.ipcMain.handle("dialog:openFolder", async () => {
     if (!mainWindow) return null;

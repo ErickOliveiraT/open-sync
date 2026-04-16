@@ -1,2 +1,3 @@
 /prompt_data/*
 node_modules/
+.VSCodeCounter/

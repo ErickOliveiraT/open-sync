@@ -41,6 +41,11 @@ export interface ProgressPayload {
   log: RcloneLogLine
 }
 
+export interface StartedPayload {
+  taskId: string
+  command: string   // full rclone command string shown in the UI
+}
+
 export interface CompletePayload {
   taskId: string
 }

@@ -2,6 +2,7 @@ import { app, BrowserWindow, ipcMain, dialog } from 'electron'
 import { join } from 'path'
 import { readFileSync, writeFileSync, existsSync } from 'fs'
 import { randomUUID } from 'crypto'
+import { execFile } from 'child_process'
 import * as syncManager from './syncManager'
 import type { SyncTask } from '../src/types'
 
@@ -30,8 +31,8 @@ let mainWindow: BrowserWindow | null = null
 
 function createWindow(): void {
   mainWindow = new BrowserWindow({
-    width: 1200,
-    height: 700,
+    width: 1245,
+    height: 800,
     minWidth: 720,
     minHeight: 500,
     title: 'OpenSync',
@@ -91,11 +92,46 @@ function registerIpcHandlers(): void {
     const task = loadTasks().find((t) => t.id === taskId)
     if (!task) return
 
-    syncManager.startSync(taskId, task, mainWindow)
+    syncManager.startSync(taskId, task, mainWindow, {
+      onComplete: () => {
+        const all = loadTasks()
+        const idx = all.findIndex((t) => t.id === taskId)
+        if (idx !== -1) {
+          all[idx].lastRunAt = new Date().toISOString()
+          saveTasks(all)
+        }
+      },
+      onError: () => {
+        const all = loadTasks()
+        const idx = all.findIndex((t) => t.id === taskId)
+        if (idx !== -1) {
+          all[idx].lastRunAt = new Date().toISOString()
+          saveTasks(all)
+        }
+      },
+    })
   })
 
   ipcMain.handle('sync:stop', (_, taskId: string) => {
     syncManager.stopSync(taskId)
+  })
+
+  // --- Remotes ---
+
+  ipcMain.handle('remotes:list', (): Promise<string[]> => {
+    return new Promise((resolve) => {
+      execFile('rclone', ['listremotes'], (error, stdout) => {
+        if (error) {
+          resolve([])
+          return
+        }
+        const remotes = stdout
+          .split('\n')
+          .map((l) => l.trim())
+          .filter((l) => l.length > 0)
+        resolve(remotes)
+      })
+    })
   })
 
   // --- Native dialogs ---

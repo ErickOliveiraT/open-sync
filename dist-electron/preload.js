@@ -11,7 +11,12 @@ electron.contextBridge.exposeInMainWorld("electronAPI", {
   stopSync: (taskId) => electron.ipcRenderer.invoke("sync:stop", taskId),
   // Native dialog
   openFolder: () => electron.ipcRenderer.invoke("dialog:openFolder"),
+  // Remotes
+  listRemotes: () => electron.ipcRenderer.invoke("remotes:list"),
   // Push event subscriptions (main → renderer)
+  onStarted: (cb) => {
+    electron.ipcRenderer.on("sync:started", (_event, data) => cb(data));
+  },
   onProgress: (cb) => {
     electron.ipcRenderer.on("sync:progress", (_event, data) => cb(data));
   },

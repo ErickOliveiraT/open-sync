@@ -1,17 +1,38 @@
-import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { useNavigate, useParams } from 'react-router-dom'
 import { useSyncStore } from '../store/useSyncStore'
 import type { TaskType } from '../types'
 
-export default function NewTaskPage() {
+export default function EditTaskPage() {
+  const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
-  const { addTask } = useSyncStore()
+  const { tasks, mergeTasks } = useSyncStore()
 
   const [name, setName] = useState('')
   const [source, setSource] = useState('')
   const [destination, setDestination] = useState('')
   const [type, setType] = useState<TaskType>('sync')
+  const [ready, setReady] = useState(false)
   const [submitting, setSubmitting] = useState(false)
+
+  // Load tasks if store is empty (e.g. direct URL navigation), then seed the form
+  useEffect(() => {
+    async function init() {
+      let list = tasks
+      if (list.length === 0) {
+        list = await window.electronAPI.getTasks()
+        mergeTasks(list)
+      }
+      const task = list.find((t) => t.id === id)
+      if (!task) { navigate('/tasks'); return }
+      setName(task.name)
+      setSource(task.source)
+      setDestination(task.destination)
+      setType(task.type)
+      setReady(true)
+    }
+    init()
+  }, [id])
 
   async function pickFolder(setter: (v: string) => void) {
     const path = await window.electronAPI.openFolder()
@@ -20,21 +41,26 @@ export default function NewTaskPage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!name.trim() || !source.trim() || !destination.trim()) return
-
+    if (!id || !name.trim() || !source.trim() || !destination.trim()) return
     setSubmitting(true)
-    const newTask = await window.electronAPI.addTask({
+    await window.electronAPI.updateTask(id, {
       name: name.trim(),
       source: source.trim(),
       destination: destination.trim(),
       type,
     })
-    addTask(newTask)
+    // Refresh store from disk
+    const updated = await window.electronAPI.getTasks()
+    mergeTasks(updated)
     navigate('/tasks')
   }
 
+  if (!ready) {
+    return <div className="p-6 text-slate-400 text-sm">Loading…</div>
+  }
+
   return (
-    <div className="min-h-screen p-6 max-w-lg mx-auto">
+    <div className="p-6 max-w-lg mx-auto">
       {/* Header */}
       <div className="flex items-center gap-3 mb-6">
         <button
@@ -43,7 +69,7 @@ export default function NewTaskPage() {
         >
           ← Back
         </button>
-        <h1 className="text-xl font-bold text-white">New Sync Task</h1>
+        <h1 className="text-xl font-bold text-white">Edit Task</h1>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-5">
@@ -53,7 +79,6 @@ export default function NewTaskPage() {
             type="text"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="e.g. Photos backup"
             required
             className="input"
           />
@@ -66,7 +91,6 @@ export default function NewTaskPage() {
               type="text"
               value={source}
               onChange={(e) => setSource(e.target.value)}
-              placeholder="/home/user/Documents"
               required
               className="input flex-1"
             />
@@ -87,7 +111,6 @@ export default function NewTaskPage() {
               type="text"
               value={destination}
               onChange={(e) => setDestination(e.target.value)}
-              placeholder="gdrive:backup  or  /tmp/backup"
               required
               className="input flex-1"
             />
@@ -99,9 +122,6 @@ export default function NewTaskPage() {
               Browse
             </button>
           </div>
-          <p className="text-xs text-slate-500 mt-1">
-            Use a local path or a configured rclone remote (e.g. <code>gdrive:backup</code>).
-          </p>
         </Field>
 
         {/* Type */}
@@ -119,20 +139,19 @@ export default function NewTaskPage() {
                 />
                 <span className="text-sm text-slate-300 capitalize">{t}</span>
                 <span className="text-xs text-slate-500">
-                  {t === 'sync' ? '(mirror — deletes removed files)' : '(copy — keeps destination files)'}
+                  {t === 'sync' ? '(mirror)' : '(copy only)'}
                 </span>
               </label>
             ))}
           </div>
         </Field>
 
-        {/* Submit */}
         <button
           type="submit"
           disabled={submitting}
           className="w-full py-2.5 rounded-lg bg-blue-600 text-white font-medium hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
         >
-          {submitting ? 'Saving…' : 'Save Task'}
+          {submitting ? 'Saving…' : 'Save Changes'}
         </button>
       </form>
     </div>

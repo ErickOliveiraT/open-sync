@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { SyncTask, ProgressPayload, CompletePayload, ErrorPayload } from '../src/types'
+import type { SyncTask, ProgressPayload, StartedPayload, CompletePayload, ErrorPayload } from '../src/types'
 
 // Expose a typed API to the renderer process via the contextBridge.
 // The renderer must NEVER import from 'electron' directly.
@@ -28,7 +28,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
   openFolder: (): Promise<string | null> =>
     ipcRenderer.invoke('dialog:openFolder'),
 
+  // Remotes
+  listRemotes: (): Promise<string[]> =>
+    ipcRenderer.invoke('remotes:list'),
+
   // Push event subscriptions (main → renderer)
+  onStarted: (cb: (payload: StartedPayload) => void): void => {
+    ipcRenderer.on('sync:started', (_event, data: StartedPayload) => cb(data))
+  },
+
   onProgress: (cb: (payload: ProgressPayload) => void): void => {
     ipcRenderer.on('sync:progress', (_event, data: ProgressPayload) => cb(data))
   },
