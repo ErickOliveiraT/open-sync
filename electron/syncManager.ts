@@ -15,9 +15,10 @@ function stripSurroundingQuotes(s: string): string {
   return s.replace(/^(['"])(.*)\1$/, '$2').trim()
 }
 
-/** Wraps an arg in double-quotes for display when it contains spaces. */
+/** Wraps an arg in double-quotes for display. Always quotes paths; skips flags. */
 function shellQuote(s: string): string {
-  return s.includes(' ') ? `"${s}"` : s
+  if (s.startsWith('-')) return s          // flags don't need quoting
+  return `"${s}"`                          // always quote paths and remotes
 }
 
 /**

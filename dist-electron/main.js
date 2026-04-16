@@ -9,7 +9,8 @@ function stripSurroundingQuotes(s) {
   return s.replace(/^(['"])(.*)\1$/, "$2").trim();
 }
 function shellQuote(s) {
-  return s.includes(" ") ? `"${s}"` : s;
+  if (s.startsWith("-")) return s;
+  return `"${s}"`;
 }
 function startSync(taskId, task, win, callbacks) {
   var _a, _b;
