@@ -3,9 +3,11 @@ import { join } from 'path'
 import { readFileSync, writeFileSync, existsSync, mkdirSync, statSync } from 'fs'
 import { randomUUID } from 'crypto'
 import { execFile } from 'child_process'
+import * as http from 'http'
+import * as https from 'https'
 import * as syncManager from './syncManager'
 import * as scheduler from './schedulerManager'
-import type { SyncTask } from '../src/types'
+import type { SyncTask, Webhook } from '../src/types'
 
 // Path to the tasks JSON file in the user data directory
 function getTasksPath(): string {
@@ -28,17 +30,24 @@ function saveTasks(tasks: SyncTask[]): void {
   writeFileSync(getTasksPath(), JSON.stringify(tasks, null, 2), 'utf-8')
 }
 
-async function fireWebhook(webhook: Webhook): Promise<void> {
-  const init: RequestInit = { method: webhook.method }
-  if (webhook.method === 'POST') {
-    init.headers = { 'Content-Type': 'application/json' }
-    init.body = webhook.payload.trim() || '{}'
+function fireWebhook(webhook: Webhook): void {
+  const body = webhook.method === 'POST' ? (webhook.payload.trim() || '{}') : undefined
+  let url: URL
+  try { url = new URL(webhook.url) } catch { return }
+
+  const mod = url.protocol === 'https:' ? https : http
+  const options: http.RequestOptions = {
+    method: webhook.method,
+    hostname: url.hostname,
+    port: url.port || undefined,
+    path: url.pathname + url.search,
+    headers: body ? { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) } : {},
   }
-  try {
-    await fetch(webhook.url, init)
-  } catch (err) {
-    console.error(`[webhook] ${webhook.method} ${webhook.url} failed:`, err)
-  }
+
+  const req = mod.request(options, (res) => { res.resume() })
+  req.on('error', (err) => console.error(`[webhook] ${webhook.method} ${webhook.url} failed:`, err))
+  if (body) req.write(body)
+  req.end()
 }
 
 function fireWebhooks(task: SyncTask, trigger: 'success' | 'error'): void {
@@ -146,8 +155,12 @@ function registerIpcHandlers(): void {
     function stampLastRun(trigger: 'success' | 'error') {
       const all = loadTasks()
       const idx = all.findIndex((t) => t.id === taskId)
-      if (idx !== -1) { all[idx].lastRunAt = new Date().toISOString(); saveTasks(all) }
-      fireWebhooks(task, trigger)
+      if (idx !== -1) {
+        const current = all[idx]
+        all[idx].lastRunAt = new Date().toISOString()
+        saveTasks(all)
+        fireWebhooks(current, trigger)
+      }
     }
 
     syncManager.startSync(taskId, task, mainWindow, {

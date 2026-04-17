@@ -4,7 +4,27 @@ const path = require("path");
 const fs = require("fs");
 const crypto = require("crypto");
 const child_process = require("child_process");
+const http = require("http");
+const https = require("https");
 const os = require("os");
+function _interopNamespaceDefault(e) {
+  const n = Object.create(null, { [Symbol.toStringTag]: { value: "Module" } });
+  if (e) {
+    for (const k in e) {
+      if (k !== "default") {
+        const d = Object.getOwnPropertyDescriptor(e, k);
+        Object.defineProperty(n, k, d.get ? d : {
+          enumerable: true,
+          get: () => e[k]
+        });
+      }
+    }
+  }
+  n.default = e;
+  return Object.freeze(n);
+}
+const http__namespace = /* @__PURE__ */ _interopNamespaceDefault(http);
+const https__namespace = /* @__PURE__ */ _interopNamespaceDefault(https);
 const activeProcesses = /* @__PURE__ */ new Map();
 function stripSurroundingQuotes(s) {
   return s.replace(/^(['"])(.*)\1$/, "$2").trim();
@@ -360,17 +380,28 @@ function loadTasks() {
 function saveTasks(tasks) {
   fs.writeFileSync(getTasksPath(), JSON.stringify(tasks, null, 2), "utf-8");
 }
-async function fireWebhook(webhook) {
-  const init = { method: webhook.method };
-  if (webhook.method === "POST") {
-    init.headers = { "Content-Type": "application/json" };
-    init.body = webhook.payload.trim() || "{}";
-  }
+function fireWebhook(webhook) {
+  const body = webhook.method === "POST" ? webhook.payload.trim() || "{}" : void 0;
+  let url;
   try {
-    await fetch(webhook.url, init);
-  } catch (err) {
-    console.error(`[webhook] ${webhook.method} ${webhook.url} failed:`, err);
+    url = new URL(webhook.url);
+  } catch {
+    return;
   }
+  const mod = url.protocol === "https:" ? https__namespace : http__namespace;
+  const options = {
+    method: webhook.method,
+    hostname: url.hostname,
+    port: url.port || void 0,
+    path: url.pathname + url.search,
+    headers: body ? { "Content-Type": "application/json", "Content-Length": Buffer.byteLength(body) } : {}
+  };
+  const req = mod.request(options, (res) => {
+    res.resume();
+  });
+  req.on("error", (err) => console.error(`[webhook] ${webhook.method} ${webhook.url} failed:`, err));
+  if (body) req.write(body);
+  req.end();
 }
 function fireWebhooks(task, trigger) {
   for (const wh of task.webhooks ?? []) {
@@ -464,10 +495,11 @@ function registerIpcHandlers() {
       const all = loadTasks();
       const idx = all.findIndex((t) => t.id === taskId);
       if (idx !== -1) {
+        const current = all[idx];
         all[idx].lastRunAt = (/* @__PURE__ */ new Date()).toISOString();
         saveTasks(all);
+        fireWebhooks(current, trigger);
       }
-      fireWebhooks(task, trigger);
     }
     startSync(taskId, task, mainWindow, {
       onComplete: () => stampLastRun("success"),
