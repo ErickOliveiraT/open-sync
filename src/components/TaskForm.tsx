@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { TaskType, TaskFilter, FilterType, Webhook, WebhookMethod, WebhookTrigger } from '../types'
 import CronBuilder, { isValidCron } from './CronBuilder'
+import JsonEditor from './JsonEditor'
 
 type Tab = 'general' | 'sync-options' | 'filters' | 'scheduling' | 'webhooks'
 
@@ -467,12 +468,12 @@ export default function TaskForm({ initialValues, submitLabel, onSubmit, onCance
                   {/* Row 3: payload (POST only) */}
                   {wh.method === 'POST' && (
                     <div>
-                      <textarea
+                      <JsonEditor
                         value={wh.payload}
-                        onChange={(e) => updateWebhook(idx, { payload: e.target.value })}
-                        placeholder={'{\n  "key": "value"\n}'}
+                        onChange={(v) => updateWebhook(idx, { payload: v })}
+                        invalid={payloadInvalid}
                         rows={4}
-                        className={`input w-full font-mono text-xs resize-y ${payloadInvalid ? 'border-red-500' : ''}`}
+                        placeholder={'{\n  "key": "value"\n}'}
                       />
                       {payloadInvalid && (
                         <p className="text-xs text-red-400 mt-1">Invalid JSON payload.</p>
