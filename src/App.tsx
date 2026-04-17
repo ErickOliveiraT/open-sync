@@ -6,6 +6,7 @@ import TaskListPage from './pages/TaskListPage'
 import NewTaskPage from './pages/NewTaskPage'
 import EditTaskPage from './pages/EditTaskPage'
 import ExecutionPage from './pages/ExecutionPage'
+import LogsPage from './pages/LogsPage'
 import RemotesPage from './pages/RemotesPage'
 
 export default function App() {
@@ -22,6 +23,7 @@ export default function App() {
           <Route path="/tasks/new"      element={<NewTaskPage />} />
           <Route path="/tasks/:id/edit" element={<EditTaskPage />} />
           <Route path="/tasks/:id/run"  element={<ExecutionPage />} />
+          <Route path="/tasks/:id/logs" element={<LogsPage />} />
           <Route path="/remotes"       element={<RemotesPage />} />
         </Route>
       </Routes>

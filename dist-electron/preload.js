@@ -13,6 +13,8 @@ electron.contextBridge.exposeInMainWorld("electronAPI", {
   openFolder: () => electron.ipcRenderer.invoke("dialog:openFolder"),
   // Remotes
   listRemotes: () => electron.ipcRenderer.invoke("remotes:list"),
+  // Logs
+  readTaskLog: (taskId) => electron.ipcRenderer.invoke("logs:read", taskId),
   // Push event subscriptions (main → renderer)
   onStarted: (cb) => {
     electron.ipcRenderer.on("sync:started", (_event, data) => cb(data));

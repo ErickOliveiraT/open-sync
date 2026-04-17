@@ -1,9 +1,10 @@
 import { app, BrowserWindow, ipcMain, dialog } from 'electron'
 import { join } from 'path'
-import { readFileSync, writeFileSync, existsSync } from 'fs'
+import { readFileSync, writeFileSync, existsSync, mkdirSync, statSync } from 'fs'
 import { randomUUID } from 'crypto'
 import { execFile } from 'child_process'
 import * as syncManager from './syncManager'
+import * as scheduler from './schedulerManager'
 import type { SyncTask } from '../src/types'
 
 // Path to the tasks JSON file in the user data directory
@@ -25,6 +26,25 @@ function loadTasks(): SyncTask[] {
 
 function saveTasks(tasks: SyncTask[]): void {
   writeFileSync(getTasksPath(), JSON.stringify(tasks, null, 2), 'utf-8')
+}
+
+/** Updates lastRunAt from log file mtime for tasks whose scheduled run happened outside the app. */
+function reconcileLastRunTimes(): void {
+  const tasks = loadTasks()
+  const logsDir = join(app.getPath('userData'), 'logs')
+  let changed = false
+  for (const task of tasks) {
+    const logPath = join(logsDir, `${task.id}.log`)
+    if (!existsSync(logPath)) continue
+    try {
+      const mtime = statSync(logPath).mtime.toISOString()
+      if (!task.lastRunAt || mtime > task.lastRunAt) {
+        task.lastRunAt = mtime
+        changed = true
+      }
+    } catch { /* ignore */ }
+  }
+  if (changed) saveTasks(tasks)
 }
 
 let mainWindow: BrowserWindow | null = null
@@ -55,7 +75,7 @@ function createWindow(): void {
 function registerIpcHandlers(): void {
   // --- Task CRUD ---
 
-  ipcMain.handle('tasks:getAll', () => loadTasks())
+  ipcMain.handle('tasks:getAll', () => { reconcileLastRunTimes(); return loadTasks() })
 
   ipcMain.handle('tasks:add', (_, taskData: Omit<SyncTask, 'id' | 'status'>) => {
     const tasks = loadTasks()
@@ -66,6 +86,7 @@ function registerIpcHandlers(): void {
     }
     tasks.push(newTask)
     saveTasks(tasks)
+    scheduler.register(newTask, app.getPath('userData'))
     return newTask
   })
 
@@ -75,12 +96,19 @@ function registerIpcHandlers(): void {
     if (idx !== -1) {
       tasks[idx] = { ...tasks[idx], ...data }
       saveTasks(tasks)
+      const updated = tasks[idx]
+      if (updated.schedule) {
+        scheduler.register(updated, app.getPath('userData'))
+      } else {
+        scheduler.unregister(id)
+      }
     }
   })
 
   ipcMain.handle('tasks:delete', (_, id: string) => {
     const tasks = loadTasks().filter((t) => t.id !== id)
     saveTasks(tasks)
+    scheduler.unregister(id)
   })
 
   // --- Sync control ---
@@ -92,24 +120,23 @@ function registerIpcHandlers(): void {
     const task = loadTasks().find((t) => t.id === taskId)
     if (!task) return
 
-    syncManager.startSync(taskId, task, mainWindow, {
-      onComplete: () => {
-        const all = loadTasks()
-        const idx = all.findIndex((t) => t.id === taskId)
-        if (idx !== -1) {
-          all[idx].lastRunAt = new Date().toISOString()
-          saveTasks(all)
-        }
-      },
-      onError: () => {
-        const all = loadTasks()
-        const idx = all.findIndex((t) => t.id === taskId)
-        if (idx !== -1) {
-          all[idx].lastRunAt = new Date().toISOString()
-          saveTasks(all)
-        }
-      },
-    })
+    const logsDir = join(app.getPath('userData'), 'logs')
+    if (!existsSync(logsDir)) mkdirSync(logsDir, { recursive: true })
+    const logPath = join(logsDir, `${taskId}.log`)
+
+    function stampLastRun() {
+      const all = loadTasks()
+      const idx = all.findIndex((t) => t.id === taskId)
+      if (idx !== -1) { all[idx].lastRunAt = new Date().toISOString(); saveTasks(all) }
+    }
+
+    syncManager.startSync(taskId, task, mainWindow, { onComplete: stampLastRun, onError: stampLastRun }, logPath)
+  })
+
+  ipcMain.handle('logs:read', (_, taskId: string): string | null => {
+    const logPath = join(app.getPath('userData'), 'logs', `${taskId}.log`)
+    if (!existsSync(logPath)) return null
+    try { return readFileSync(logPath, 'utf-8') } catch { return null }
   })
 
   ipcMain.handle('sync:stop', (_, taskId: string) => {
@@ -148,6 +175,8 @@ function registerIpcHandlers(): void {
 app.whenReady().then(() => {
   registerIpcHandlers()
   createWindow()
+  reconcileLastRunTimes()
+  scheduler.syncAll(loadTasks(), app.getPath('userData'))
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()

@@ -32,6 +32,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   listRemotes: (): Promise<string[]> =>
     ipcRenderer.invoke('remotes:list'),
 
+  // Logs
+  readTaskLog: (taskId: string): Promise<string | null> =>
+    ipcRenderer.invoke('logs:read', taskId),
+
   // Push event subscriptions (main → renderer)
   onStarted: (cb: (payload: StartedPayload) => void): void => {
     ipcRenderer.on('sync:started', (_event, data: StartedPayload) => cb(data))

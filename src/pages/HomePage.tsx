@@ -27,7 +27,10 @@ export default function HomePage() {
   const { tasks, mergeTasks } = useSyncStore()
 
   useEffect(() => {
-    window.electronAPI.getTasks().then(mergeTasks)
+    const refresh = () => window.electronAPI.getTasks().then(mergeTasks)
+    refresh()
+    window.addEventListener('focus', refresh)
+    return () => window.removeEventListener('focus', refresh)
   }, [])
 
   // Tasks that have been run at least once, sorted newest first
@@ -92,7 +95,7 @@ export default function HomePage() {
             {recentTasks.map((task) => (
               <div
                 key={task.id}
-                onClick={() => navigate(`/tasks/${task.id}/run`)}
+                onClick={() => navigate(`/tasks/${task.id}/logs`)}
                 className="flex items-center gap-4 rounded-xl bg-slate-800 px-5 py-3 cursor-pointer hover:bg-slate-700 transition-colors"
               >
                 <div className="flex-1 min-w-0">

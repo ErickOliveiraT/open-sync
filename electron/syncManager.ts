@@ -1,4 +1,6 @@
 import { spawn, ChildProcess } from 'child_process'
+import { createWriteStream, existsSync, mkdirSync, WriteStream } from 'fs'
+import { dirname } from 'path'
 import type { BrowserWindow } from 'electron'
 import type { SyncTask, RcloneLogLine, ProgressPayload } from '../src/types'
 
@@ -25,10 +27,9 @@ function shellQuote(s: string): string {
  * Starts a rclone sync/copy process for the given task.
  * Streams stdout/stderr, parses each line as JSON, and fires IPC events.
  */
-export function startSync(taskId: string, task: SyncTask, win: BrowserWindow, callbacks?: SyncCallbacks): void {
+export function startSync(taskId: string, task: SyncTask, win: BrowserWindow, callbacks?: SyncCallbacks, logPath?: string): void {
   if (isRunning(taskId)) return
 
-  // Strip any accidental surrounding quotes before passing to spawn
   const source      = stripSurroundingQuotes(task.source)
   const destination = stripSurroundingQuotes(task.destination)
 
@@ -37,7 +38,7 @@ export function startSync(taskId: string, task: SyncTask, win: BrowserWindow, ca
     .map((f) => `--${f.type}=${f.value.trim()}`)
 
   const args = [
-    task.type,    // 'sync' or 'copy'
+    task.type,
     source,
     destination,
     ...filterArgs,
@@ -49,11 +50,18 @@ export function startSync(taskId: string, task: SyncTask, win: BrowserWindow, ca
   const proc = spawn('rclone', args, { stdio: ['ignore', 'pipe', 'pipe'] })
   activeProcesses.set(taskId, proc)
 
-  // Build a display-friendly command with shell-quoted args
   const command = `rclone ${args.map(shellQuote).join(' ')}`
   win.webContents.send('sync:started', { taskId, command })
 
-  // Buffer to accumulate incomplete lines across chunk boundaries
+  // Open log file for writing (truncate on each new run)
+  let logStream: WriteStream | null = null
+  if (logPath) {
+    const dir = dirname(logPath)
+    if (!existsSync(dir)) mkdirSync(dir, { recursive: true })
+    logStream = createWriteStream(logPath, { flags: 'w' })
+    logStream.write(JSON.stringify({ level: 'info', msg: command, time: new Date().toISOString() }) + '\n')
+  }
+
   let stdoutBuffer = ''
   let stderrBuffer = ''
 
@@ -65,26 +73,18 @@ export function startSync(taskId: string, task: SyncTask, win: BrowserWindow, ca
     for (const line of lines) {
       const trimmed = line.trim()
       if (!trimmed) continue
+
+      logStream?.write(trimmed + '\n')
+
       try {
         const obj: RcloneLogLine = JSON.parse(trimmed)
-        const payload: ProgressPayload = {
-          taskId,
-          stats: obj.stats ?? null,
-          log: obj,
-        }
-        win.webContents.send('sync:progress', payload)
+        win.webContents.send('sync:progress', { taskId, stats: obj.stats ?? null, log: obj } satisfies ProgressPayload)
       } catch {
-        // Non-JSON line — forward as a warning so it appears in the log viewer
-        const payload: ProgressPayload = {
+        win.webContents.send('sync:progress', {
           taskId,
           stats: null,
-          log: {
-            level: 'warning',
-            msg: trimmed,
-            time: new Date().toISOString(),
-          },
-        }
-        win.webContents.send('sync:progress', payload)
+          log: { level: 'warning', msg: trimmed, time: new Date().toISOString() },
+        } satisfies ProgressPayload)
       }
     }
   }
@@ -96,20 +96,19 @@ export function startSync(taskId: string, task: SyncTask, win: BrowserWindow, ca
   proc.stderr?.on('data', (chunk: Buffer) => handleChunk(stderrBuf, chunk))
 
   proc.on('close', (code) => {
+    logStream?.end()
     activeProcesses.delete(taskId)
     if (code === 0) {
       win.webContents.send('sync:complete', { taskId })
       callbacks?.onComplete?.()
     } else {
-      win.webContents.send('sync:error', {
-        taskId,
-        message: `rclone exited with code ${code}`,
-      })
+      win.webContents.send('sync:error', { taskId, message: `rclone exited with code ${code}` })
       callbacks?.onError?.()
     }
   })
 
   proc.on('error', (err) => {
+    logStream?.end()
     activeProcesses.delete(taskId)
     win.webContents.send('sync:error', { taskId, message: err.message })
     callbacks?.onError?.()
