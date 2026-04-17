@@ -19,8 +19,10 @@ function stripSurroundingQuotes(s: string): string {
 
 /** Wraps an arg in double-quotes for display. Always quotes paths; skips flags. */
 function shellQuote(s: string): string {
-  if (s.startsWith('-')) return s          // flags don't need quoting
-  return `"${s}"`                          // always quote paths and remotes
+  const filterMatch = s.match(/^(--(?:include|exclude))=(.+)$/)
+  if (filterMatch) return `${filterMatch[1]}="${filterMatch[2]}"`
+  if (s.startsWith('-')) return s
+  return `"${s}"`
 }
 
 /**

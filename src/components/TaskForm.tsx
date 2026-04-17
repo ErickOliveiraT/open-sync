@@ -108,7 +108,10 @@ export default function TaskForm({ initialValues, submitLabel, onSubmit, onCance
   const [submitting, setSubmitting] = useState(false)
 
   function addFilter() {
-    setFilters((prev) => [...prev, { type: 'exclude', value: '' }])
+    setFilters((prev) => {
+      const lockedType = prev.length > 0 ? prev[0].type : 'exclude'
+      return [...prev, { type: lockedType, value: '' }]
+    })
   }
 
   function removeFilter(idx: number) {
@@ -349,7 +352,8 @@ export default function TaskForm({ initialValues, submitLabel, onSubmit, onCance
                   <select
                     value={filter.type}
                     onChange={(e) => updateFilter(idx, { type: e.target.value as FilterType })}
-                    className="input w-32 shrink-0"
+                    disabled={filters.length > 1 || idx > 0}
+                    className="input w-32 shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <option value="exclude">Exclude</option>
                     <option value="include">Include</option>
@@ -384,8 +388,8 @@ export default function TaskForm({ initialValues, submitLabel, onSubmit, onCance
 
               {filters.length > 0 && (
                 <p className="text-xs text-slate-600">
-                  Filters are passed to rclone as{' '}
-                  <code className="text-slate-500">--exclude=/node_modules/*</code>
+                  All filters must be of the same type. Filters are passed to rclone as{' '}
+                  <code className="text-slate-500">--{filters[0].type}=/node_modules/*</code>
                 </p>
               )}
             </div>

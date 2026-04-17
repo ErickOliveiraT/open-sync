@@ -48,7 +48,12 @@ function unixRegister(task: SyncTask, logPath: string): void {
   unixUnregister(task.id)
   const rclone = findRclonePath()
   const args = [...buildRcloneArgs(task), '--use-json-log', '--verbose']
-  const quoted = args.map(a => a.startsWith('--') ? a : `"${a.replace(/"/g, '\\"')}"`).join(' ')
+  const quoted = args.map(a => {
+    const filterMatch = a.match(/^(--(?:include|exclude))=(.+)$/)
+    if (filterMatch) return `${filterMatch[1]}="${filterMatch[2]}"`
+    if (a.startsWith('--')) return a
+    return `"${a.replace(/"/g, '\\"')}"`
+  }).join(' ')
   const logsDir = logPath.substring(0, logPath.lastIndexOf('/'))
   const line = `${task.schedule} mkdir -p "${logsDir}" && "${rclone}" ${quoted} > "${logPath}" 2>&1 ${MARKER}${task.id}`
   const current = getCrontab().trimEnd()
