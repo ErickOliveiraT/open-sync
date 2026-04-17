@@ -1,301 +1,63 @@
-"use strict";
-const electron = require("electron");
-const path = require("path");
-const fs = require("fs");
-const crypto = require("crypto");
-const child_process = require("child_process");
-const http = require("http");
-const https = require("https");
-const os = require("os");
-function _interopNamespaceDefault(e) {
-  const n = Object.create(null, { [Symbol.toStringTag]: { value: "Module" } });
-  if (e) {
-    for (const k in e) {
-      if (k !== "default") {
-        const d = Object.getOwnPropertyDescriptor(e, k);
-        Object.defineProperty(n, k, d.get ? d : {
-          enumerable: true,
-          get: () => e[k]
-        });
-      }
-    }
-  }
-  n.default = e;
-  return Object.freeze(n);
-}
-const http__namespace = /* @__PURE__ */ _interopNamespaceDefault(http);
-const https__namespace = /* @__PURE__ */ _interopNamespaceDefault(https);
-const activeProcesses = /* @__PURE__ */ new Map();
-function stripSurroundingQuotes(s) {
-  return s.replace(/^(['"])(.*)\1$/, "$2").trim();
-}
-function shellQuote(s) {
-  const filterMatch = s.match(/^(--(?:include|exclude))=(.+)$/);
-  if (filterMatch) return `${filterMatch[1]}="${filterMatch[2]}"`;
-  if (s.startsWith("-")) return s;
-  return `"${s}"`;
-}
-function startSync(taskId, task, win, callbacks, logPath) {
-  var _a, _b;
-  if (isRunning(taskId)) return;
-  const source = stripSurroundingQuotes(task.source);
-  const destination = stripSurroundingQuotes(task.destination);
-  const filterArgs = (task.filters ?? []).filter((f) => f.value.trim() !== "").map((f) => `--${f.type}=${f.value.trim()}`);
-  const args = [
-    task.type,
-    source,
-    destination,
-    ...filterArgs,
-    "--stats=1s",
-    "--use-json-log",
-    "--verbose"
-  ];
-  const proc = child_process.spawn("rclone", args, { stdio: ["ignore", "pipe", "pipe"] });
-  activeProcesses.set(taskId, proc);
-  const command = `rclone ${args.map(shellQuote).join(" ")}`;
-  win.webContents.send("sync:started", { taskId, command });
-  let logStream = null;
-  if (logPath) {
-    const dir = path.dirname(logPath);
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-    logStream = fs.createWriteStream(logPath, { flags: "w" });
-    logStream.write(JSON.stringify({ level: "info", msg: command, time: (/* @__PURE__ */ new Date()).toISOString() }) + "\n");
-  }
-  let stdoutBuffer = "";
-  let stderrBuffer = "";
-  function handleChunk(buffer, chunk) {
-    buffer.value += chunk.toString();
-    const lines = buffer.value.split("\n");
-    buffer.value = lines.pop() ?? "";
-    for (const line of lines) {
-      const trimmed = line.trim();
-      if (!trimmed) continue;
-      logStream == null ? void 0 : logStream.write(trimmed + "\n");
-      try {
-        const obj = JSON.parse(trimmed);
-        win.webContents.send("sync:progress", { taskId, stats: obj.stats ?? null, log: obj });
-      } catch {
-        win.webContents.send("sync:progress", {
-          taskId,
-          stats: null,
-          log: { level: "warning", msg: trimmed, time: (/* @__PURE__ */ new Date()).toISOString() }
-        });
-      }
-    }
-  }
-  const stdoutBuf = { value: stdoutBuffer };
-  const stderrBuf = { value: stderrBuffer };
-  (_a = proc.stdout) == null ? void 0 : _a.on("data", (chunk) => handleChunk(stdoutBuf, chunk));
-  (_b = proc.stderr) == null ? void 0 : _b.on("data", (chunk) => handleChunk(stderrBuf, chunk));
-  proc.on("close", (code) => {
-    var _a2, _b2;
-    logStream == null ? void 0 : logStream.end();
-    activeProcesses.delete(taskId);
-    if (code === 0) {
-      win.webContents.send("sync:complete", { taskId });
-      (_a2 = callbacks == null ? void 0 : callbacks.onComplete) == null ? void 0 : _a2.call(callbacks);
-    } else {
-      win.webContents.send("sync:error", { taskId, message: `rclone exited with code ${code}` });
-      (_b2 = callbacks == null ? void 0 : callbacks.onError) == null ? void 0 : _b2.call(callbacks);
-    }
-  });
-  proc.on("error", (err) => {
-    var _a2;
-    logStream == null ? void 0 : logStream.end();
-    activeProcesses.delete(taskId);
-    win.webContents.send("sync:error", { taskId, message: err.message });
-    (_a2 = callbacks == null ? void 0 : callbacks.onError) == null ? void 0 : _a2.call(callbacks);
-  });
-}
-function stopSync(taskId) {
-  const proc = activeProcesses.get(taskId);
-  if (proc) {
-    proc.kill("SIGTERM");
-    activeProcesses.delete(taskId);
-  }
-}
-function killAll() {
-  for (const [, proc] of activeProcesses) {
-    proc.kill("SIGTERM");
-  }
-  activeProcesses.clear();
-}
-function isRunning(taskId) {
-  return activeProcesses.has(taskId);
-}
-function buildRcloneArgs(task) {
-  const clean = (s) => s.replace(/^(['"])(.*)\1$/, "$2").trim();
-  const filters = (task.filters ?? []).filter((f) => f.value.trim()).map((f) => `--${f.type}=${f.value.trim()}`);
-  return [task.type, clean(task.source), clean(task.destination), ...filters];
-}
-function findRclonePath() {
-  const cmd = process.platform === "win32" ? "where" : "which";
-  const r = child_process.spawnSync(cmd, ["rclone"], { encoding: "utf-8" });
-  if (r.status === 0 && r.stdout.trim()) {
-    return r.stdout.trim().split("\n")[0].trim();
-  }
-  return "rclone";
-}
-const MARKER = "# opensync:";
-function getCrontab() {
-  const r = child_process.spawnSync("crontab", ["-l"], { encoding: "utf-8" });
-  return r.status === 0 ? r.stdout : "";
-}
-function setCrontab(content) {
-  child_process.spawnSync("crontab", ["-"], { input: content, encoding: "utf-8" });
-}
-function unixUnregister(taskId) {
-  const lines = getCrontab().split("\n").filter((l) => !l.includes(`${MARKER}${taskId}`));
-  const content = lines.join("\n").trimEnd();
-  setCrontab(content ? content + "\n" : "");
-}
-function unixRegister(task, logPath) {
-  unixUnregister(task.id);
-  const rclone = findRclonePath();
-  const args = [...buildRcloneArgs(task), "--use-json-log", "--verbose"];
-  const quoted = args.map((a) => {
-    const filterMatch = a.match(/^(--(?:include|exclude))=(.+)$/);
-    if (filterMatch) return `${filterMatch[1]}="${filterMatch[2]}"`;
-    if (a.startsWith("--")) return a;
-    return `"${a.replace(/"/g, '\\"')}"`;
-  }).join(" ");
-  const logsDir = logPath.substring(0, logPath.lastIndexOf("/"));
-  const line = `${task.schedule} mkdir -p "${logsDir}" && "${rclone}" ${quoted} > "${logPath}" 2>&1 ${MARKER}${task.id}`;
-  const current = getCrontab().trimEnd();
-  setCrontab((current ? current + "\n" : "") + line + "\n");
-}
-function unixListManagedIds() {
-  return getCrontab().split("\n").flatMap((l) => {
-    const m = l.match(new RegExp(`${MARKER}([\\w-]+)`));
-    return m ? [m[1]] : [];
-  });
-}
-function winTaskName(taskId) {
-  return `OpenSync_${taskId}`;
-}
-function escapeXml(s) {
-  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
-}
-const MONTH_ELEMS = [
-  "",
-  "January",
-  "February",
-  "March",
-  "April",
-  "May",
-  "June",
-  "July",
-  "August",
-  "September",
-  "October",
-  "November",
-  "December"
-];
-const DOW_ELEMS = {
-  0: "Sunday",
-  1: "Monday",
-  2: "Tuesday",
-  3: "Wednesday",
-  4: "Thursday",
-  5: "Friday",
-  6: "Saturday"
-};
-function nextStartBoundary(h, m) {
-  const d = /* @__PURE__ */ new Date();
-  d.setHours(parseInt(h), parseInt(m), 0, 0);
-  if (d <= /* @__PURE__ */ new Date()) d.setDate(d.getDate() + 1);
-  return d.toISOString().slice(0, 16);
-}
-function cronToTriggerXml(cron) {
-  const [minE, hourE, domE, monthE, dowE] = cron.trim().split(/\s+/);
-  if (/^\*\/(\d+)$/.test(minE) && hourE === "*" && domE === "*" && monthE === "*" && dowE === "*") {
-    const n = minE.slice(2);
-    const now = /* @__PURE__ */ new Date();
-    now.setSeconds(0, 0);
-    return `<TimeTrigger>
-      <StartBoundary>${now.toISOString().slice(0, 16)}</StartBoundary>
+"use strict";const i=require("electron"),f=require("path"),d=require("fs"),Y=require("crypto"),m=require("child_process"),Z=require("http"),k=require("https"),tt=require("os");function W(t){const e=Object.create(null,{[Symbol.toStringTag]:{value:"Module"}});if(t){for(const n in t)if(n!=="default"){const r=Object.getOwnPropertyDescriptor(t,n);Object.defineProperty(e,n,r.get?r:{enumerable:!0,get:()=>t[n]})}}return e.default=t,Object.freeze(e)}const et=W(Z),nt=W(k),S=new Map;function _(t){return t.replace(/^(['"])(.*)\1$/,"$2").trim()}function rt(t){const e=t.match(/^(--(?:include|exclude))=(.+)$/);return e?`${e[1]}="${e[2]}"`:t.startsWith("-")?t:`"${t}"`}function ot(t,e,n,r,o){var j,C;if(q(t))return;const s=_(e.source),a=_(e.destination),u=(e.filters??[]).filter(c=>c.value.trim()!=="").map(c=>`--${c.type}=${c.value.trim()}`),l=[e.type,s,a,...u,"--stats=1s","--use-json-log","--verbose"],p=m.spawn("rclone",l,{stdio:["ignore","pipe","pipe"]});S.set(t,p);const x=`rclone ${l.map(rt).join(" ")}`;n.webContents.send("sync:started",{taskId:t,command:x});let g=null;if(o){const c=f.dirname(o);d.existsSync(c)||d.mkdirSync(c,{recursive:!0}),g=d.createWriteStream(o,{flags:"w"}),g.write(JSON.stringify({level:"info",msg:x,time:new Date().toISOString()})+`
+`)}let G="",X="";function R(c,$){c.value+=$.toString();const w=c.value.split(`
+`);c.value=w.pop()??"";for(const K of w){const E=K.trim();if(E){g==null||g.write(E+`
+`);try{const I=JSON.parse(E);n.webContents.send("sync:progress",{taskId:t,stats:I.stats??null,log:I})}catch{n.webContents.send("sync:progress",{taskId:t,stats:null,log:{level:"warning",msg:E,time:new Date().toISOString()}})}}}}const Q={value:G},z={value:X};(j=p.stdout)==null||j.on("data",c=>R(Q,c)),(C=p.stderr)==null||C.on("data",c=>R(z,c)),p.on("close",c=>{var $,w;g==null||g.end(),S.delete(t),c===0?(n.webContents.send("sync:complete",{taskId:t}),($=r==null?void 0:r.onComplete)==null||$.call(r)):(n.webContents.send("sync:error",{taskId:t,message:`rclone exited with code ${c}`}),(w=r==null?void 0:r.onError)==null||w.call(r))}),p.on("error",c=>{var $;g==null||g.end(),S.delete(t),n.webContents.send("sync:error",{taskId:t,message:c.message}),($=r==null?void 0:r.onError)==null||$.call(r)})}function st(t){const e=S.get(t);e&&(e.kill("SIGTERM"),S.delete(t))}function it(){for(const[,t]of S)t.kill("SIGTERM");S.clear()}function q(t){return S.has(t)}function L(t){const e=r=>r.replace(/^(['"])(.*)\1$/,"$2").trim(),n=(t.filters??[]).filter(r=>r.value.trim()).map(r=>`--${r.type}=${r.value.trim()}`);return[t.type,e(t.source),e(t.destination),...n]}function F(){const t=process.platform==="win32"?"where":"which",e=m.spawnSync(t,["rclone"],{encoding:"utf-8"});return e.status===0&&e.stdout.trim()?e.stdout.trim().split(`
+`)[0].trim():"rclone"}const O="# opensync:";function B(){const t=m.spawnSync("crontab",["-l"],{encoding:"utf-8"});return t.status===0?t.stdout:""}function N(t){m.spawnSync("crontab",["-"],{input:t,encoding:"utf-8"})}function H(t){const n=B().split(`
+`).filter(r=>!r.includes(`${O}${t}`)).join(`
+`).trimEnd();N(n?n+`
+`:"")}function at(t,e){H(t.id);const n=F(),o=[...L(t),"--use-json-log","--verbose"].map(l=>{const p=l.match(/^(--(?:include|exclude))=(.+)$/);return p?`${p[1]}="${p[2]}"`:l.startsWith("--")?l:`"${l.replace(/"/g,'\\"')}"`}).join(" "),s=e.substring(0,e.lastIndexOf("/")),a=`${t.schedule} mkdir -p "${s}" && "${n}" ${o} > "${e}" 2>&1 ${O}${t.id}`,u=B().trimEnd();N((u?u+`
+`:"")+a+`
+`)}function ct(){return B().split(`
+`).flatMap(t=>{const e=t.match(new RegExp(`${O}([\\w-]+)`));return e?[e[1]]:[]})}function U(t){return`OpenSync_${t}`}function A(t){return t.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;")}const P=["","January","February","March","April","May","June","July","August","September","October","November","December"],ut={0:"Sunday",1:"Monday",2:"Tuesday",3:"Wednesday",4:"Thursday",5:"Friday",6:"Saturday"};function T(t,e){const n=new Date;return n.setHours(parseInt(t),parseInt(e),0,0),n<=new Date&&n.setDate(n.getDate()+1),n.toISOString().slice(0,16)}function lt(t){const[e,n,r,o,s]=t.trim().split(/\s+/);if(/^\*\/(\d+)$/.test(e)&&n==="*"&&r==="*"&&o==="*"&&s==="*"){const u=e.slice(2),l=new Date;return l.setSeconds(0,0),`<TimeTrigger>
+      <StartBoundary>${l.toISOString().slice(0,16)}</StartBoundary>
       <Enabled>true</Enabled>
       <Repetition>
-        <Interval>PT${n}M</Interval>
+        <Interval>PT${u}M</Interval>
         <StopAtDurationEnd>false</StopAtDurationEnd>
       </Repetition>
-    </TimeTrigger>`;
-  }
-  if (/^\d+$/.test(minE) && hourE === "*" && domE === "*" && monthE === "*" && dowE === "*") {
-    const now = /* @__PURE__ */ new Date();
-    now.setSeconds(0, 0);
-    return `<TimeTrigger>
-      <StartBoundary>${now.toISOString().slice(0, 16)}</StartBoundary>
+    </TimeTrigger>`}if(/^\d+$/.test(e)&&n==="*"&&r==="*"&&o==="*"&&s==="*"){const u=new Date;return u.setSeconds(0,0),`<TimeTrigger>
+      <StartBoundary>${u.toISOString().slice(0,16)}</StartBoundary>
       <Enabled>true</Enabled>
       <Repetition>
         <Interval>PT1H</Interval>
         <StopAtDurationEnd>false</StopAtDurationEnd>
       </Repetition>
-    </TimeTrigger>`;
-  }
-  if (/^\d+$/.test(minE) && /^\d+$/.test(hourE) && domE === "*" && monthE === "*" && dowE === "*") {
-    return `<CalendarTrigger>
-      <StartBoundary>${nextStartBoundary(hourE, minE)}</StartBoundary>
+    </TimeTrigger>`}if(/^\d+$/.test(e)&&/^\d+$/.test(n)&&r==="*"&&o==="*"&&s==="*")return`<CalendarTrigger>
+      <StartBoundary>${T(n,e)}</StartBoundary>
       <Enabled>true</Enabled>
       <ScheduleByDay><DaysInterval>1</DaysInterval></ScheduleByDay>
-    </CalendarTrigger>`;
-  }
-  if (/^\d+$/.test(minE) && /^\d+$/.test(hourE) && domE === "*" && monthE === "*" && /^[\d,]+$/.test(dowE)) {
-    const days = dowE.split(",").map((d) => `<${DOW_ELEMS[+d]} />`).join("");
-    return `<CalendarTrigger>
-      <StartBoundary>${nextStartBoundary(hourE, minE)}</StartBoundary>
+    </CalendarTrigger>`;if(/^\d+$/.test(e)&&/^\d+$/.test(n)&&r==="*"&&o==="*"&&/^[\d,]+$/.test(s)){const u=s.split(",").map(l=>`<${ut[+l]} />`).join("");return`<CalendarTrigger>
+      <StartBoundary>${T(n,e)}</StartBoundary>
       <Enabled>true</Enabled>
       <ScheduleByWeek>
         <WeeksInterval>1</WeeksInterval>
-        <DaysOfWeek>${days}</DaysOfWeek>
+        <DaysOfWeek>${u}</DaysOfWeek>
       </ScheduleByWeek>
-    </CalendarTrigger>`;
-  }
-  if (/^\d+$/.test(minE) && /^\d+$/.test(hourE) && /^\d+$/.test(domE) && monthE === "*" && dowE === "*") {
-    const allMonths = MONTH_ELEMS.slice(1).map((m) => `<${m} />`).join("");
-    return `<CalendarTrigger>
-      <StartBoundary>${nextStartBoundary(hourE, minE)}</StartBoundary>
+    </CalendarTrigger>`}if(/^\d+$/.test(e)&&/^\d+$/.test(n)&&/^\d+$/.test(r)&&o==="*"&&s==="*"){const u=P.slice(1).map(l=>`<${l} />`).join("");return`<CalendarTrigger>
+      <StartBoundary>${T(n,e)}</StartBoundary>
       <Enabled>true</Enabled>
       <ScheduleByMonth>
-        <DaysOfMonth><Day>${domE}</Day></DaysOfMonth>
-        <Months>${allMonths}</Months>
+        <DaysOfMonth><Day>${r}</Day></DaysOfMonth>
+        <Months>${u}</Months>
       </ScheduleByMonth>
-    </CalendarTrigger>`;
-  }
-  if (/^\d+$/.test(minE) && /^\d+$/.test(hourE) && /^\d+$/.test(domE) && /^\d+$/.test(monthE) && dowE === "*") {
-    return `<CalendarTrigger>
-      <StartBoundary>${nextStartBoundary(hourE, minE)}</StartBoundary>
+    </CalendarTrigger>`}if(/^\d+$/.test(e)&&/^\d+$/.test(n)&&/^\d+$/.test(r)&&/^\d+$/.test(o)&&s==="*")return`<CalendarTrigger>
+      <StartBoundary>${T(n,e)}</StartBoundary>
       <Enabled>true</Enabled>
       <ScheduleByMonth>
-        <DaysOfMonth><Day>${domE}</Day></DaysOfMonth>
-        <Months><${MONTH_ELEMS[+monthE]} /></Months>
+        <DaysOfMonth><Day>${r}</Day></DaysOfMonth>
+        <Months><${P[+o]} /></Months>
       </ScheduleByMonth>
-    </CalendarTrigger>`;
-  }
-  const tomorrow = /* @__PURE__ */ new Date();
-  tomorrow.setDate(tomorrow.getDate() + 1);
-  tomorrow.setHours(0, 0, 0, 0);
-  return `<CalendarTrigger>
-    <StartBoundary>${tomorrow.toISOString().slice(0, 16)}</StartBoundary>
+    </CalendarTrigger>`;const a=new Date;return a.setDate(a.getDate()+1),a.setHours(0,0,0,0),`<CalendarTrigger>
+    <StartBoundary>${a.toISOString().slice(0,16)}</StartBoundary>
     <Enabled>true</Enabled>
     <ScheduleByDay><DaysInterval>1</DaysInterval></ScheduleByDay>
-  </CalendarTrigger>`;
-}
-function buildTaskXml(task, logPath) {
-  const rclone = findRclonePath();
-  const args = [...buildRcloneArgs(task), "--use-json-log", "--verbose"];
-  const argsStr = args.map((a) => {
-    if (a.startsWith("--")) return a;
-    return a.includes(" ") ? `"${a.replace(/"/g, '\\"')}"` : a;
-  }).join(" ");
-  const cmdArgs = `/c "${rclone}" ${argsStr} > "${logPath}" 2>&1`;
-  return `<?xml version="1.0" encoding="UTF-16"?>
+  </CalendarTrigger>`}function dt(t,e){const n=F(),o=[...L(t),"--use-json-log","--verbose"].map(a=>a.startsWith("--")?a:a.includes(" ")?`"${a.replace(/"/g,'\\"')}"`:a).join(" "),s=`/c "${n}" ${o} > "${e}" 2>&1`;return`<?xml version="1.0" encoding="UTF-16"?>
 <Task version="1.2" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
   <RegistrationInfo>
-    <Description>OpenSync: ${escapeXml(task.name)}</Description>
+    <Description>OpenSync: ${A(t.name)}</Description>
   </RegistrationInfo>
   <Triggers>
-    ${cronToTriggerXml(task.schedule)}
+    ${lt(t.schedule)}
   </Triggers>
   <Settings>
     <MultipleInstancesPolicy>IgnoreNew</MultipleInstancesPolicy>
@@ -308,256 +70,9 @@ function buildTaskXml(task, logPath) {
   <Actions Context="Author">
     <Exec>
       <Command>cmd.exe</Command>
-      <Arguments>${escapeXml(cmdArgs)}</Arguments>
+      <Arguments>${A(s)}</Arguments>
     </Exec>
   </Actions>
-</Task>`;
-}
-function winRegister(task, logPath) {
-  const taskName = winTaskName(task.id);
-  const xml = buildTaskXml(task, logPath);
-  const tmpPath = path.join(os.tmpdir(), `opensync_${task.id}.xml`);
-  try {
-    fs.writeFileSync(tmpPath, xml, { encoding: "utf16le" });
-    child_process.spawnSync("schtasks", ["/delete", "/tn", taskName, "/f"], { encoding: "utf-8" });
-    child_process.spawnSync("schtasks", ["/create", "/tn", taskName, "/xml", tmpPath, "/f"], { encoding: "utf-8" });
-  } finally {
-    try {
-      fs.unlinkSync(tmpPath);
-    } catch {
-    }
-  }
-}
-function winUnregister(taskId) {
-  child_process.spawnSync("schtasks", ["/delete", "/tn", winTaskName(taskId), "/f"], { encoding: "utf-8" });
-}
-function winListManagedIds() {
-  const r = child_process.spawnSync("schtasks", ["/query", "/fo", "CSV", "/nh"], { encoding: "utf-8" });
-  if (r.status !== 0) return [];
-  return r.stdout.split("\n").flatMap((l) => {
-    const m = l.match(/"OpenSync_([a-f0-9-]+)"/);
-    return m ? [m[1]] : [];
-  });
-}
-function register(task, userDataPath) {
-  if (!task.schedule) return;
-  const logsDir = path.join(userDataPath, "logs");
-  if (!fs.existsSync(logsDir)) fs.mkdirSync(logsDir, { recursive: true });
-  const logPath = path.join(logsDir, `${task.id}.log`);
-  if (process.platform === "win32") {
-    winRegister(task, logPath);
-  } else {
-    unixRegister(task, logPath);
-  }
-}
-function unregister(taskId) {
-  if (process.platform === "win32") {
-    winUnregister(taskId);
-  } else {
-    unixUnregister(taskId);
-  }
-}
-function syncAll(tasks, userDataPath) {
-  const taskIds = new Set(tasks.map((t) => t.id));
-  const managed = process.platform === "win32" ? winListManagedIds() : unixListManagedIds();
-  for (const id of managed) {
-    if (!taskIds.has(id)) unregister(id);
-  }
-  for (const task of tasks) {
-    if (task.schedule) {
-      register(task, userDataPath);
-    } else {
-      unregister(task.id);
-    }
-  }
-}
-function getTasksPath() {
-  return path.join(electron.app.getPath("userData"), "tasks.json");
-}
-function loadTasks() {
-  const p = getTasksPath();
-  if (!fs.existsSync(p)) return [];
-  try {
-    const raw = JSON.parse(fs.readFileSync(p, "utf-8"));
-    return raw.map((t) => ({ ...t, status: "idle" }));
-  } catch {
-    return [];
-  }
-}
-function saveTasks(tasks) {
-  fs.writeFileSync(getTasksPath(), JSON.stringify(tasks, null, 2), "utf-8");
-}
-function fireWebhook(webhook) {
-  const body = webhook.method === "POST" ? webhook.payload.trim() || "{}" : void 0;
-  let url;
-  try {
-    url = new URL(webhook.url);
-  } catch {
-    return;
-  }
-  const mod = url.protocol === "https:" ? https__namespace : http__namespace;
-  const options = {
-    method: webhook.method,
-    hostname: url.hostname,
-    port: url.port || void 0,
-    path: url.pathname + url.search,
-    headers: body ? { "Content-Type": "application/json", "Content-Length": Buffer.byteLength(body) } : {}
-  };
-  const req = mod.request(options, (res) => {
-    res.resume();
-  });
-  req.on("error", (err) => console.error(`[webhook] ${webhook.method} ${webhook.url} failed:`, err));
-  if (body) req.write(body);
-  req.end();
-}
-function fireWebhooks(task, trigger) {
-  for (const wh of task.webhooks ?? []) {
-    if (wh.trigger === trigger) fireWebhook(wh);
-  }
-}
-function reconcileLastRunTimes() {
-  const tasks = loadTasks();
-  const logsDir = path.join(electron.app.getPath("userData"), "logs");
-  let changed = false;
-  for (const task of tasks) {
-    const logPath = path.join(logsDir, `${task.id}.log`);
-    if (!fs.existsSync(logPath)) continue;
-    try {
-      const mtime = fs.statSync(logPath).mtime.toISOString();
-      if (!task.lastRunAt || mtime > task.lastRunAt) {
-        task.lastRunAt = mtime;
-        changed = true;
-      }
-    } catch {
-    }
-  }
-  if (changed) saveTasks(tasks);
-}
-let mainWindow = null;
-function createWindow() {
-  mainWindow = new electron.BrowserWindow({
-    width: 1245,
-    height: 800,
-    minWidth: 720,
-    minHeight: 500,
-    title: "OpenSync",
-    webPreferences: {
-      preload: path.join(__dirname, "preload.js"),
-      contextIsolation: true,
-      nodeIntegration: false
-    }
-  });
-  if (process.env.VITE_DEV_SERVER_URL) {
-    mainWindow.loadURL(process.env.VITE_DEV_SERVER_URL);
-    mainWindow.webContents.openDevTools();
-  } else {
-    mainWindow.loadFile(path.join(__dirname, "../dist/index.html"));
-  }
-}
-function registerIpcHandlers() {
-  electron.ipcMain.handle("tasks:getAll", () => {
-    reconcileLastRunTimes();
-    return loadTasks();
-  });
-  electron.ipcMain.handle("tasks:add", (_, taskData) => {
-    const tasks = loadTasks();
-    const newTask = {
-      ...taskData,
-      id: crypto.randomUUID(),
-      status: "idle"
-    };
-    tasks.push(newTask);
-    saveTasks(tasks);
-    register(newTask, electron.app.getPath("userData"));
-    return newTask;
-  });
-  electron.ipcMain.handle("tasks:update", (_, id, data) => {
-    const tasks = loadTasks();
-    const idx = tasks.findIndex((t) => t.id === id);
-    if (idx !== -1) {
-      tasks[idx] = { ...tasks[idx], ...data };
-      saveTasks(tasks);
-      const updated = tasks[idx];
-      if (updated.schedule) {
-        register(updated, electron.app.getPath("userData"));
-      } else {
-        unregister(id);
-      }
-    }
-  });
-  electron.ipcMain.handle("tasks:delete", (_, id) => {
-    const tasks = loadTasks().filter((t) => t.id !== id);
-    saveTasks(tasks);
-    unregister(id);
-  });
-  electron.ipcMain.handle("sync:start", (_, taskId) => {
-    if (!mainWindow) return;
-    if (isRunning(taskId)) return;
-    const task = loadTasks().find((t) => t.id === taskId);
-    if (!task) return;
-    const logsDir = path.join(electron.app.getPath("userData"), "logs");
-    if (!fs.existsSync(logsDir)) fs.mkdirSync(logsDir, { recursive: true });
-    const logPath = path.join(logsDir, `${taskId}.log`);
-    function stampLastRun(trigger) {
-      const all = loadTasks();
-      const idx = all.findIndex((t) => t.id === taskId);
-      if (idx !== -1) {
-        const current = all[idx];
-        all[idx].lastRunAt = (/* @__PURE__ */ new Date()).toISOString();
-        saveTasks(all);
-        fireWebhooks(current, trigger);
-      }
-    }
-    startSync(taskId, task, mainWindow, {
-      onComplete: () => stampLastRun("success"),
-      onError: () => stampLastRun("error")
-    }, logPath);
-  });
-  electron.ipcMain.handle("logs:read", (_, taskId) => {
-    const logPath = path.join(electron.app.getPath("userData"), "logs", `${taskId}.log`);
-    if (!fs.existsSync(logPath)) return null;
-    try {
-      return fs.readFileSync(logPath, "utf-8");
-    } catch {
-      return null;
-    }
-  });
-  electron.ipcMain.handle("sync:stop", (_, taskId) => {
-    stopSync(taskId);
-  });
-  electron.ipcMain.handle("remotes:list", () => {
-    return new Promise((resolve) => {
-      child_process.execFile("rclone", ["listremotes"], (error, stdout) => {
-        if (error) {
-          resolve([]);
-          return;
-        }
-        const remotes = stdout.split("\n").map((l) => l.trim()).filter((l) => l.length > 0);
-        resolve(remotes);
-      });
-    });
-  });
-  electron.ipcMain.handle("dialog:openFolder", async () => {
-    if (!mainWindow) return null;
-    const result = await electron.dialog.showOpenDialog(mainWindow, {
-      properties: ["openDirectory"]
-    });
-    return result.filePaths[0] ?? null;
-  });
-}
-electron.app.whenReady().then(() => {
-  electron.Menu.setApplicationMenu(null);
-  registerIpcHandlers();
-  createWindow();
-  reconcileLastRunTimes();
-  syncAll(loadTasks(), electron.app.getPath("userData"));
-  electron.app.on("activate", () => {
-    if (electron.BrowserWindow.getAllWindows().length === 0) createWindow();
-  });
-});
-electron.app.on("window-all-closed", () => {
-  if (process.platform !== "darwin") electron.app.quit();
-});
-electron.app.on("before-quit", () => {
-  killAll();
-});
+</Task>`}function pt(t,e){const n=U(t.id),r=dt(t,e),o=f.join(tt.tmpdir(),`opensync_${t.id}.xml`);try{d.writeFileSync(o,r,{encoding:"utf16le"}),m.spawnSync("schtasks",["/delete","/tn",n,"/f"],{encoding:"utf-8"}),m.spawnSync("schtasks",["/create","/tn",n,"/xml",o,"/f"],{encoding:"utf-8"})}finally{try{d.unlinkSync(o)}catch{}}}function ft(t){m.spawnSync("schtasks",["/delete","/tn",U(t),"/f"],{encoding:"utf-8"})}function gt(){const t=m.spawnSync("schtasks",["/query","/fo","CSV","/nh"],{encoding:"utf-8"});return t.status!==0?[]:t.stdout.split(`
+`).flatMap(e=>{const n=e.match(/"OpenSync_([a-f0-9-]+)"/);return n?[n[1]]:[]})}function v(t,e){if(!t.schedule)return;const n=f.join(e,"logs");d.existsSync(n)||d.mkdirSync(n,{recursive:!0});const r=f.join(n,`${t.id}.log`);process.platform==="win32"?pt(t,r):at(t,r)}function M(t){process.platform==="win32"?ft(t):H(t)}function mt(t,e){const n=new Set(t.map(o=>o.id)),r=process.platform==="win32"?gt():ct();for(const o of r)n.has(o)||M(o);for(const o of t)o.schedule?v(o,e):M(o.id)}function J(){return f.join(i.app.getPath("userData"),"tasks.json")}function y(){const t=J();if(!d.existsSync(t))return[];try{return JSON.parse(d.readFileSync(t,"utf-8")).map(n=>({...n,status:"idle"}))}catch{return[]}}function D(t){d.writeFileSync(J(),JSON.stringify(t,null,2),"utf-8")}function yt(t){const e=t.method==="POST"?t.payload.trim()||"{}":void 0;let n;try{n=new URL(t.url)}catch{return}const r=n.protocol==="https:"?nt:et,o={method:t.method,hostname:n.hostname,port:n.port||void 0,path:n.pathname+n.search,headers:e?{"Content-Type":"application/json","Content-Length":Buffer.byteLength(e)}:{}},s=r.request(o,a=>{a.resume()});s.on("error",a=>console.error(`[webhook] ${t.method} ${t.url} failed:`,a)),e&&s.write(e),s.end()}function ht(t,e){for(const n of t.webhooks??[])n.trigger===e&&yt(n)}function V(){const t=y(),e=f.join(i.app.getPath("userData"),"logs");let n=!1;for(const r of t){const o=f.join(e,`${r.id}.log`);if(d.existsSync(o))try{const s=d.statSync(o).mtime.toISOString();(!r.lastRunAt||s>r.lastRunAt)&&(r.lastRunAt=s,n=!0)}catch{}}n&&D(t)}let h=null;function b(){h=new i.BrowserWindow({width:1245,height:800,minWidth:720,minHeight:500,title:"OpenSync",webPreferences:{preload:f.join(__dirname,"preload.js"),contextIsolation:!0,nodeIntegration:!1}}),process.env.VITE_DEV_SERVER_URL?(h.loadURL(process.env.VITE_DEV_SERVER_URL),h.webContents.openDevTools()):h.loadFile(f.join(__dirname,"../dist/index.html"))}function St(){i.ipcMain.handle("tasks:getAll",()=>(V(),y())),i.ipcMain.handle("tasks:add",(t,e)=>{const n=y(),r={...e,id:Y.randomUUID(),status:"idle"};return n.push(r),D(n),v(r,i.app.getPath("userData")),r}),i.ipcMain.handle("tasks:update",(t,e,n)=>{const r=y(),o=r.findIndex(s=>s.id===e);if(o!==-1){r[o]={...r[o],...n},D(r);const s=r[o];s.schedule?v(s,i.app.getPath("userData")):M(e)}}),i.ipcMain.handle("tasks:delete",(t,e)=>{const n=y().filter(r=>r.id!==e);D(n),M(e)}),i.ipcMain.handle("sync:start",(t,e)=>{if(!h||q(e))return;const n=y().find(a=>a.id===e);if(!n)return;const r=f.join(i.app.getPath("userData"),"logs");d.existsSync(r)||d.mkdirSync(r,{recursive:!0});const o=f.join(r,`${e}.log`);function s(a){const u=y(),l=u.findIndex(p=>p.id===e);if(l!==-1){const p=u[l];u[l].lastRunAt=new Date().toISOString(),D(u),ht(p,a)}}ot(e,n,h,{onComplete:()=>s("success"),onError:()=>s("error")},o)}),i.ipcMain.handle("logs:read",(t,e)=>{const n=f.join(i.app.getPath("userData"),"logs",`${e}.log`);if(!d.existsSync(n))return null;try{return d.readFileSync(n,"utf-8")}catch{return null}}),i.ipcMain.handle("sync:stop",(t,e)=>{st(e)}),i.ipcMain.handle("remotes:list",()=>new Promise(t=>{m.execFile("rclone",["listremotes"],(e,n)=>{if(e){t([]);return}const r=n.split(`
+`).map(o=>o.trim()).filter(o=>o.length>0);t(r)})})),i.ipcMain.handle("dialog:openFolder",async()=>h?(await i.dialog.showOpenDialog(h,{properties:["openDirectory"]})).filePaths[0]??null:null)}i.app.whenReady().then(()=>{i.Menu.setApplicationMenu(null),St(),b(),V(),mt(y(),i.app.getPath("userData")),i.app.on("activate",()=>{i.BrowserWindow.getAllWindows().length===0&&b()})});i.app.on("window-all-closed",()=>{process.platform!=="darwin"&&i.app.quit()});i.app.on("before-quit",()=>{it()});

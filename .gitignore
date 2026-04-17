@@ -1,3 +1,6 @@
 /prompt_data/*
 node_modules/
 .VSCodeCounter/
+dist-electron/
+dist/
+release/
