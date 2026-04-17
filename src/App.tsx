@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom'
+import { HashRouter as BrowserRouter, Routes, Route } from 'react-router-dom'
 import { useSyncEvents } from './hooks/useSyncEvents'
 import Layout from './components/Layout'
 import HomePage from './pages/HomePage'
