@@ -360,6 +360,23 @@ function loadTasks() {
 function saveTasks(tasks) {
   fs.writeFileSync(getTasksPath(), JSON.stringify(tasks, null, 2), "utf-8");
 }
+async function fireWebhook(webhook) {
+  const init = { method: webhook.method };
+  if (webhook.method === "POST") {
+    init.headers = { "Content-Type": "application/json" };
+    init.body = webhook.payload.trim() || "{}";
+  }
+  try {
+    await fetch(webhook.url, init);
+  } catch (err) {
+    console.error(`[webhook] ${webhook.method} ${webhook.url} failed:`, err);
+  }
+}
+function fireWebhooks(task, trigger) {
+  for (const wh of task.webhooks ?? []) {
+    if (wh.trigger === trigger) fireWebhook(wh);
+  }
+}
 function reconcileLastRunTimes() {
   const tasks = loadTasks();
   const logsDir = path.join(electron.app.getPath("userData"), "logs");
@@ -443,15 +460,19 @@ function registerIpcHandlers() {
     const logsDir = path.join(electron.app.getPath("userData"), "logs");
     if (!fs.existsSync(logsDir)) fs.mkdirSync(logsDir, { recursive: true });
     const logPath = path.join(logsDir, `${taskId}.log`);
-    function stampLastRun() {
+    function stampLastRun(trigger) {
       const all = loadTasks();
       const idx = all.findIndex((t) => t.id === taskId);
       if (idx !== -1) {
         all[idx].lastRunAt = (/* @__PURE__ */ new Date()).toISOString();
         saveTasks(all);
       }
+      fireWebhooks(task, trigger);
     }
-    startSync(taskId, task, mainWindow, { onComplete: stampLastRun, onError: stampLastRun }, logPath);
+    startSync(taskId, task, mainWindow, {
+      onComplete: () => stampLastRun("success"),
+      onError: () => stampLastRun("error")
+    }, logPath);
   });
   electron.ipcMain.handle("logs:read", (_, taskId) => {
     const logPath = path.join(electron.app.getPath("userData"), "logs", `${taskId}.log`);

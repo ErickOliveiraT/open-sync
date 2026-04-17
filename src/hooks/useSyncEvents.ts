@@ -1,6 +1,24 @@
 import { useEffect } from 'react'
 import { useSyncStore } from '../store/useSyncStore'
-import type { ProgressPayload, StartedPayload, CompletePayload, ErrorPayload } from '../types'
+import type { ProgressPayload, StartedPayload, CompletePayload, ErrorPayload, Webhook } from '../types'
+
+function fireWebhook(wh: Webhook): void {
+  const init: RequestInit = { method: wh.method }
+  if (wh.method === 'POST') {
+    init.headers = { 'Content-Type': 'application/json' }
+    init.body = wh.payload.trim() || '{}'
+  }
+  fetch(wh.url, init).catch((err) =>
+    console.error(`[webhook] ${wh.method} ${wh.url} failed:`, err),
+  )
+}
+
+function fireWebhooks(taskId: string, trigger: 'success' | 'error'): void {
+  const task = useSyncStore.getState().tasks.find((t) => t.id === taskId)
+  for (const wh of task?.webhooks ?? []) {
+    if (wh.trigger === trigger) fireWebhook(wh)
+  }
+}
 
 /**
  * Registers IPC event listeners once for the lifetime of the app.
@@ -38,6 +56,7 @@ export function useSyncEvents(): void {
         level: 'info',
         msg: 'Sync completed successfully.',
       })
+      fireWebhooks(payload.taskId, 'success')
     })
 
     window.electronAPI.onError((payload: ErrorPayload) => {
@@ -48,6 +67,7 @@ export function useSyncEvents(): void {
         level: 'error',
         msg: payload.message,
       })
+      fireWebhooks(payload.taskId, 'error')
     })
 
     // Cleanup listeners on unmount to prevent duplicates (e.g. React StrictMode)

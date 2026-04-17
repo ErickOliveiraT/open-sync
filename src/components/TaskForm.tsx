@@ -1,14 +1,15 @@
 import { useEffect, useState } from 'react'
-import type { TaskType, TaskFilter, FilterType } from '../types'
+import type { TaskType, TaskFilter, FilterType, Webhook, WebhookMethod, WebhookTrigger } from '../types'
 import CronBuilder, { isValidCron } from './CronBuilder'
 
-type Tab = 'general' | 'sync-options' | 'filters' | 'scheduling'
+type Tab = 'general' | 'sync-options' | 'filters' | 'scheduling' | 'webhooks'
 
 const TABS: { id: Tab; label: string }[] = [
-  { id: 'general', label: 'General' },
-  { id: 'scheduling', label: 'Scheduling' },
+  { id: 'general',      label: 'General'      },
+  { id: 'scheduling',   label: 'Scheduling'   },
   { id: 'sync-options', label: 'Sync Options' },
-  { id: 'filters', label: 'Filters' }
+  { id: 'filters',      label: 'Filters'      },
+  { id: 'webhooks',     label: 'Webhooks'     },
 ]
 
 export interface TaskFormValues {
@@ -17,6 +18,7 @@ export interface TaskFormValues {
   destination: string
   type: TaskType
   filters: TaskFilter[]
+  webhooks: Webhook[]
   schedule?: string
 }
 
@@ -93,6 +95,11 @@ export default function TaskForm({ initialValues, submitLabel, onSubmit, onCance
     initialValues?.filters ?? []
   )
 
+  // Webhooks
+  const [webhooks, setWebhooks] = useState<Webhook[]>(
+    initialValues?.webhooks ?? []
+  )
+
   const [scheduleEnabled, setScheduleEnabled] = useState(!!initialValues?.schedule)
   const [schedule, setSchedule] = useState(initialValues?.schedule ?? '')
 
@@ -135,16 +142,38 @@ export default function TaskForm({ initialValues, submitLabel, onSubmit, onCance
     return destRemote + destRemotePath.trim()
   }
 
+  function addWebhook() {
+    setWebhooks((prev) => [...prev, { method: 'POST', trigger: 'success', url: '', payload: '' }])
+  }
+
+  function removeWebhook(idx: number) {
+    setWebhooks((prev) => prev.filter((_, i) => i !== idx))
+  }
+
+  function updateWebhook(idx: number, patch: Partial<Webhook>) {
+    setWebhooks((prev) => prev.map((w, i) => (i === idx ? { ...w, ...patch } : w)))
+  }
+
+  function isValidJson(s: string): boolean {
+    if (!s.trim()) return true
+    try { JSON.parse(s); return true } catch { return false }
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     const destination = buildDestination()
     if (!name.trim() || !source.trim() || !destination) return
     if (scheduleEnabled && !isValidCron(schedule)) return
+    const invalidWebhook = webhooks.find(
+      (w) => !w.url.trim() || (w.method === 'POST' && !isValidJson(w.payload))
+    )
+    if (invalidWebhook) return
     setSubmitting(true)
     try {
       const cleanFilters = filters.filter((f) => f.value.trim() !== '')
+      const cleanWebhooks = webhooks.filter((w) => w.url.trim())
       const resolvedSchedule = scheduleEnabled ? schedule : undefined
-      await onSubmit({ name: name.trim(), source: source.trim(), destination, type, filters: cleanFilters, schedule: resolvedSchedule })
+      await onSubmit({ name: name.trim(), source: source.trim(), destination, type, filters: cleanFilters, webhooks: cleanWebhooks, schedule: resolvedSchedule })
     } finally {
       setSubmitting(false)
     }
@@ -379,6 +408,89 @@ export default function TaskForm({ initialValues, submitLabel, onSubmit, onCance
           {scheduleEnabled && (
             <CronBuilder value={schedule} onChange={setSchedule} />
           )}
+        </div>
+      )}
+
+      {/* Webhooks */}
+      {activeTab === 'webhooks' && (
+        <div className="space-y-4">
+          {webhooks.length === 0 ? (
+            <p className="text-sm text-slate-500 py-2">
+              No webhooks configured. Requests will be fired automatically after task execution.
+            </p>
+          ) : (
+            webhooks.map((wh, idx) => {
+              const payloadInvalid = wh.method === 'POST' && wh.payload.trim() !== '' && !isValidJson(wh.payload)
+              return (
+                <div key={idx} className="rounded-lg border border-slate-700 bg-slate-800/50 p-4 space-y-3">
+                  {/* Row 1: method + trigger + remove */}
+                  <div className="flex items-center gap-3">
+                    <select
+                      value={wh.method}
+                      onChange={(e) => updateWebhook(idx, { method: e.target.value as WebhookMethod })}
+                      className="input w-24 shrink-0"
+                    >
+                      <option value="POST">POST</option>
+                      <option value="GET">GET</option>
+                    </select>
+                    <select
+                      value={wh.trigger}
+                      onChange={(e) => updateWebhook(idx, { trigger: e.target.value as WebhookTrigger })}
+                      className="input w-32 shrink-0"
+                    >
+                      <option value="success">On success</option>
+                      <option value="error">On error</option>
+                    </select>
+                    <div className="flex-1" />
+                    <button
+                      type="button"
+                      onClick={() => removeWebhook(idx)}
+                      className="p-2 rounded-lg bg-slate-700 text-slate-400 hover:bg-red-700 hover:text-white transition-colors shrink-0"
+                      title="Remove webhook"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+                        <path fillRule="evenodd" d="M8.75 1A2.75 2.75 0 0 0 6 3.75v.443c-.795.077-1.584.176-2.365.298a.75.75 0 1 0 .23 1.482l.149-.022.841 10.518A2.75 2.75 0 0 0 7.596 19h4.807a2.75 2.75 0 0 0 2.742-2.53l.841-10.52.149.023a.75.75 0 0 0 .23-1.482A41.03 41.03 0 0 0 14 4.193v-.443A2.75 2.75 0 0 0 11.25 1h-2.5ZM10 4c.84 0 1.673.025 2.5.075V3.75c0-.69-.56-1.25-1.25-1.25h-2.5c-.69 0-1.25.56-1.25 1.25v.325C8.327 4.025 9.16 4 10 4ZM8.58 7.72a.75.75 0 0 0-1.5.06l.3 7.5a.75.75 0 1 0 1.5-.06l-.3-7.5Zm4.34.06a.75.75 0 1 0-1.5-.06l-.3 7.5a.75.75 0 1 0 1.5.06l.3-7.5Z" clipRule="evenodd" />
+                      </svg>
+                    </button>
+                  </div>
+
+                  {/* Row 2: URL */}
+                  <input
+                    type="url"
+                    value={wh.url}
+                    onChange={(e) => updateWebhook(idx, { url: e.target.value })}
+                    placeholder="https://example.com/webhook"
+                    required
+                    className="input w-full"
+                  />
+
+                  {/* Row 3: payload (POST only) */}
+                  {wh.method === 'POST' && (
+                    <div>
+                      <textarea
+                        value={wh.payload}
+                        onChange={(e) => updateWebhook(idx, { payload: e.target.value })}
+                        placeholder={'{\n  "key": "value"\n}'}
+                        rows={4}
+                        className={`input w-full font-mono text-xs resize-y ${payloadInvalid ? 'border-red-500' : ''}`}
+                      />
+                      {payloadInvalid && (
+                        <p className="text-xs text-red-400 mt-1">Invalid JSON payload.</p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )
+            })
+          )}
+
+          <button
+            type="button"
+            onClick={addWebhook}
+            className="flex items-center gap-2 px-3 py-2 rounded-lg border border-dashed border-slate-600 text-slate-400 text-sm hover:border-slate-400 hover:text-slate-300 transition-colors w-full justify-center"
+          >
+            <span className="text-lg leading-none">+</span> Add webhook
+          </button>
         </div>
       )}
 

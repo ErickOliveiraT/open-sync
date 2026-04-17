@@ -49,7 +49,7 @@ export default function EditTaskPage() {
       </div>
 
       <TaskForm
-        initialValues={{ name: task.name, source: task.source, destination: task.destination, type: task.type, filters: task.filters ?? [], schedule: task.schedule }}
+        initialValues={{ name: task.name, source: task.source, destination: task.destination, type: task.type, filters: task.filters ?? [], webhooks: task.webhooks ?? [], schedule: task.schedule }}
         submitLabel="Save Changes"
         onSubmit={handleSubmit}
         onCancel={() => navigate('/tasks')}

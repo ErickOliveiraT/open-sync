@@ -28,6 +28,25 @@ function saveTasks(tasks: SyncTask[]): void {
   writeFileSync(getTasksPath(), JSON.stringify(tasks, null, 2), 'utf-8')
 }
 
+async function fireWebhook(webhook: Webhook): Promise<void> {
+  const init: RequestInit = { method: webhook.method }
+  if (webhook.method === 'POST') {
+    init.headers = { 'Content-Type': 'application/json' }
+    init.body = webhook.payload.trim() || '{}'
+  }
+  try {
+    await fetch(webhook.url, init)
+  } catch (err) {
+    console.error(`[webhook] ${webhook.method} ${webhook.url} failed:`, err)
+  }
+}
+
+function fireWebhooks(task: SyncTask, trigger: 'success' | 'error'): void {
+  for (const wh of task.webhooks ?? []) {
+    if (wh.trigger === trigger) fireWebhook(wh)
+  }
+}
+
 /** Updates lastRunAt from log file mtime for tasks whose scheduled run happened outside the app. */
 function reconcileLastRunTimes(): void {
   const tasks = loadTasks()
@@ -124,13 +143,17 @@ function registerIpcHandlers(): void {
     if (!existsSync(logsDir)) mkdirSync(logsDir, { recursive: true })
     const logPath = join(logsDir, `${taskId}.log`)
 
-    function stampLastRun() {
+    function stampLastRun(trigger: 'success' | 'error') {
       const all = loadTasks()
       const idx = all.findIndex((t) => t.id === taskId)
       if (idx !== -1) { all[idx].lastRunAt = new Date().toISOString(); saveTasks(all) }
+      fireWebhooks(task, trigger)
     }
 
-    syncManager.startSync(taskId, task, mainWindow, { onComplete: stampLastRun, onError: stampLastRun }, logPath)
+    syncManager.startSync(taskId, task, mainWindow, {
+      onComplete: () => stampLastRun('success'),
+      onError:    () => stampLastRun('error'),
+    }, logPath)
   })
 
   ipcMain.handle('logs:read', (_, taskId: string): string | null => {

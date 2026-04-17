@@ -2,10 +2,19 @@
 export type TaskType = 'sync' | 'copy'
 export type TaskStatus = 'idle' | 'running' | 'success' | 'error'
 export type FilterType = 'include' | 'exclude'
+export type WebhookMethod = 'GET' | 'POST'
+export type WebhookTrigger = 'success' | 'error'
 
 export interface TaskFilter {
   type: FilterType
   value: string
+}
+
+export interface Webhook {
+  method: WebhookMethod
+  trigger: WebhookTrigger
+  url: string
+  payload: string  // JSON string (used for POST)
 }
 
 export interface SyncTask {
@@ -16,6 +25,7 @@ export interface SyncTask {
   type: TaskType
   status: TaskStatus
   filters?: TaskFilter[]
+  webhooks?: Webhook[]
   schedule?: string    // cron expression, undefined means no scheduling
   lastRunAt?: string   // ISO timestamp
 }
