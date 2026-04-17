@@ -539,6 +539,7 @@ function registerIpcHandlers() {
   });
 }
 electron.app.whenReady().then(() => {
+  electron.Menu.setApplicationMenu(null);
   registerIpcHandlers();
   createWindow();
   reconcileLastRunTimes();

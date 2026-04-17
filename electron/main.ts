@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, dialog } from 'electron'
+import { app, BrowserWindow, ipcMain, dialog, Menu } from 'electron'
 import { join } from 'path'
 import { readFileSync, writeFileSync, existsSync, mkdirSync, statSync } from 'fs'
 import { randomUUID } from 'crypto'
@@ -209,6 +209,7 @@ function registerIpcHandlers(): void {
 }
 
 app.whenReady().then(() => {
+  Menu.setApplicationMenu(null)
   registerIpcHandlers()
   createWindow()
   reconcileLastRunTimes()
