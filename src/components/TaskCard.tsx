@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useSyncStore } from '../store/useSyncStore'
 import ConfirmModal from './ConfirmModal'
 import type { SyncTask } from '../types'
+import { nextCronRun, formatNextRun } from '../utils/cron'
 
 interface Props {
   task: SyncTask
@@ -81,6 +82,16 @@ export default function TaskCard({ task, onDeleted }: Props) {
             <span className="text-slate-300">{task.source}</span>
             <span className="mx-2">→</span>
             <span className="text-slate-300">{task.destination}</span>
+          </div>
+          <div className="text-xs mt-1">
+            {task.schedule ? (() => {
+              const next = nextCronRun(task.schedule)
+              return next
+                ? <span className="text-slate-400">Next run: <span className="text-slate-200">{formatNextRun(next)}</span></span>
+                : <span className="text-slate-500">Next run: unavailable</span>
+            })() : (
+              <span className="text-slate-600">Not scheduled</span>
+            )}
           </div>
         </div>
 

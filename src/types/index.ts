@@ -16,6 +16,7 @@ export interface SyncTask {
   type: TaskType
   status: TaskStatus
   filters?: TaskFilter[]
+  schedule?: string    // cron expression, undefined means no scheduling
   lastRunAt?: string   // ISO timestamp
 }
 

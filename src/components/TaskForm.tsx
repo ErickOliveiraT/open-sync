@@ -1,12 +1,14 @@
 import { useEffect, useState } from 'react'
 import type { TaskType, TaskFilter, FilterType } from '../types'
+import CronBuilder, { isValidCron } from './CronBuilder'
 
-type Tab = 'general' | 'sync-options' | 'filters'
+type Tab = 'general' | 'sync-options' | 'filters' | 'scheduling'
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'general', label: 'General' },
+  { id: 'scheduling', label: 'Scheduling' },
   { id: 'sync-options', label: 'Sync Options' },
-  { id: 'filters', label: 'Filters' },
+  { id: 'filters', label: 'Filters' }
 ]
 
 export interface TaskFormValues {
@@ -15,6 +17,7 @@ export interface TaskFormValues {
   destination: string
   type: TaskType
   filters: TaskFilter[]
+  schedule?: string
 }
 
 interface Props {
@@ -90,6 +93,9 @@ export default function TaskForm({ initialValues, submitLabel, onSubmit, onCance
     initialValues?.filters ?? []
   )
 
+  const [scheduleEnabled, setScheduleEnabled] = useState(!!initialValues?.schedule)
+  const [schedule, setSchedule] = useState(initialValues?.schedule ?? '')
+
   const [activeTab, setActiveTab] = useState<Tab>('general')
   const [submitting, setSubmitting] = useState(false)
 
@@ -133,10 +139,12 @@ export default function TaskForm({ initialValues, submitLabel, onSubmit, onCance
     e.preventDefault()
     const destination = buildDestination()
     if (!name.trim() || !source.trim() || !destination) return
+    if (scheduleEnabled && !isValidCron(schedule)) return
     setSubmitting(true)
     try {
       const cleanFilters = filters.filter((f) => f.value.trim() !== '')
-      await onSubmit({ name: name.trim(), source: source.trim(), destination, type, filters: cleanFilters })
+      const resolvedSchedule = scheduleEnabled ? schedule : undefined
+      await onSubmit({ name: name.trim(), source: source.trim(), destination, type, filters: cleanFilters, schedule: resolvedSchedule })
     } finally {
       setSubmitting(false)
     }
@@ -352,6 +360,25 @@ export default function TaskForm({ initialValues, submitLabel, onSubmit, onCance
               )}
             </div>
           </Field>
+        </div>
+      )}
+
+      {/* Scheduling */}
+      {activeTab === 'scheduling' && (
+        <div className="space-y-5">
+          <label className="flex items-center gap-3 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={scheduleEnabled}
+              onChange={e => setScheduleEnabled(e.target.checked)}
+              className="accent-blue-500 w-4 h-4"
+            />
+            <span className="text-sm font-medium text-slate-300">Enable scheduled execution</span>
+          </label>
+
+          {scheduleEnabled && (
+            <CronBuilder value={schedule} onChange={setSchedule} />
+          )}
         </div>
       )}
 
