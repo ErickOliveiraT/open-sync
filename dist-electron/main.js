@@ -17,11 +17,13 @@ function startSync(taskId, task, win, callbacks) {
   if (isRunning(taskId)) return;
   const source = stripSurroundingQuotes(task.source);
   const destination = stripSurroundingQuotes(task.destination);
+  const filterArgs = (task.filters ?? []).filter((f) => f.value.trim() !== "").map((f) => `--${f.type}=${f.value.trim()}`);
   const args = [
     task.type,
     // 'sync' or 'copy'
     source,
     destination,
+    ...filterArgs,
     "--stats=1s",
     "--use-json-log",
     "--verbose"

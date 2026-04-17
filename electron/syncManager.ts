@@ -32,10 +32,15 @@ export function startSync(taskId: string, task: SyncTask, win: BrowserWindow, ca
   const source      = stripSurroundingQuotes(task.source)
   const destination = stripSurroundingQuotes(task.destination)
 
+  const filterArgs = (task.filters ?? [])
+    .filter((f) => f.value.trim() !== '')
+    .map((f) => `--${f.type}=${f.value.trim()}`)
+
   const args = [
     task.type,    // 'sync' or 'copy'
     source,
     destination,
+    ...filterArgs,
     '--stats=1s',
     '--use-json-log',
     '--verbose',

@@ -1,6 +1,12 @@
 // Task configuration types
 export type TaskType = 'sync' | 'copy'
 export type TaskStatus = 'idle' | 'running' | 'success' | 'error'
+export type FilterType = 'include' | 'exclude'
+
+export interface TaskFilter {
+  type: FilterType
+  value: string
+}
 
 export interface SyncTask {
   id: string
@@ -9,6 +15,7 @@ export interface SyncTask {
   destination: string  // rclone remote, e.g. "gdrive:backup" or "/tmp/dest"
   type: TaskType
   status: TaskStatus
+  filters?: TaskFilter[]
   lastRunAt?: string   // ISO timestamp
 }
 

@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react'
-import type { TaskType } from '../types'
+import type { TaskType, TaskFilter, FilterType } from '../types'
 
 export interface TaskFormValues {
   name: string
   source: string
   destination: string
   type: TaskType
+  filters: TaskFilter[]
 }
 
 interface Props {
@@ -76,7 +77,26 @@ export default function TaskForm({ initialValues, submitLabel, onSubmit, onCance
   const [remotes, setRemotes]           = useState<string[]>([])
   const [loadingRemotes, setLoadingRemotes] = useState(false)
 
+  // Filters
+  const [filters, setFilters] = useState<TaskFilter[]>(
+    initialValues?.filters ?? []
+  )
+
   const [submitting, setSubmitting] = useState(false)
+
+  function addFilter() {
+    setFilters((prev) => [...prev, { type: 'exclude', value: '' }])
+  }
+
+  function removeFilter(idx: number) {
+    setFilters((prev) => prev.filter((_, i) => i !== idx))
+  }
+
+  function updateFilter(idx: number, patch: Partial<TaskFilter>) {
+    setFilters((prev) =>
+      prev.map((f, i) => (i === idx ? { ...f, ...patch } : f))
+    )
+  }
 
   useEffect(() => {
     if (destType !== 'remote') return
@@ -106,7 +126,8 @@ export default function TaskForm({ initialValues, submitLabel, onSubmit, onCance
     if (!name.trim() || !source.trim() || !destination) return
     setSubmitting(true)
     try {
-      await onSubmit({ name: name.trim(), source: source.trim(), destination, type })
+      const cleanFilters = filters.filter((f) => f.value.trim() !== '')
+      await onSubmit({ name: name.trim(), source: source.trim(), destination, type, filters: cleanFilters })
     } finally {
       setSubmitting(false)
     }
@@ -251,6 +272,60 @@ export default function TaskForm({ initialValues, submitLabel, onSubmit, onCance
               </span>
             </label>
           ))}
+        </div>
+      </Field>
+
+      {/* Filters */}
+      <Field label="Filters">
+        <div className="space-y-2">
+          {filters.map((filter, idx) => (
+            <div key={idx} className="flex gap-2 items-center">
+              {/* Include / Exclude toggle */}
+              <select
+                value={filter.type}
+                onChange={(e) => updateFilter(idx, { type: e.target.value as FilterType })}
+                className="input w-32 shrink-0"
+              >
+                <option value="exclude">Exclude</option>
+                <option value="include">Include</option>
+              </select>
+              {/* Pattern */}
+              <input
+                type="text"
+                value={filter.value}
+                onChange={(e) => updateFilter(idx, { value: e.target.value })}
+                placeholder="*.tmp  or  /folder/**"
+                className="input flex-1 font-mono text-xs"
+              />
+              {/* Remove */}
+              <button
+                type="button"
+                onClick={() => removeFilter(idx)}
+                className="p-2 rounded-lg bg-slate-700 text-slate-400 hover:bg-red-700 hover:text-white transition-colors shrink-0"
+                title="Remove filter"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+                  <path fillRule="evenodd" d="M8.75 1A2.75 2.75 0 0 0 6 3.75v.443c-.795.077-1.584.176-2.365.298a.75.75 0 1 0 .23 1.482l.149-.022.841 10.518A2.75 2.75 0 0 0 7.596 19h4.807a2.75 2.75 0 0 0 2.742-2.53l.841-10.52.149.023a.75.75 0 0 0 .23-1.482A41.03 41.03 0 0 0 14 4.193v-.443A2.75 2.75 0 0 0 11.25 1h-2.5ZM10 4c.84 0 1.673.025 2.5.075V3.75c0-.69-.56-1.25-1.25-1.25h-2.5c-.69 0-1.25.56-1.25 1.25v.325C8.327 4.025 9.16 4 10 4ZM8.58 7.72a.75.75 0 0 0-1.5.06l.3 7.5a.75.75 0 1 0 1.5-.06l-.3-7.5Zm4.34.06a.75.75 0 1 0-1.5-.06l-.3 7.5a.75.75 0 1 0 1.5.06l.3-7.5Z" clipRule="evenodd" />
+                </svg>
+              </button>
+            </div>
+          ))}
+
+          <button
+            type="button"
+            onClick={addFilter}
+            className="flex items-center gap-2 px-3 py-2 rounded-lg border border-dashed border-slate-600 text-slate-400 text-sm hover:border-slate-400 hover:text-slate-300 transition-colors w-full justify-center"
+          >
+            <span className="text-lg leading-none">+</span> Add filter
+          </button>
+
+          {filters.length > 0 && (
+            <p className="text-xs text-slate-600">
+              Filters are passed to rclone as{' '}
+              <code className="text-slate-500">--include=...</code> /{' '}
+              <code className="text-slate-500">--exclude=...</code> in the order listed.
+            </p>
+          )}
         </div>
       </Field>
 
