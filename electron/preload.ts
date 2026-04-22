@@ -56,4 +56,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   removeAllListeners: (channel: string): void => {
     ipcRenderer.removeAllListeners(channel)
   },
+
+  checkRclone: (): Promise<boolean> => ipcRenderer.invoke('rclone:check'),
+  getPlatform: (): Promise<string> => ipcRenderer.invoke('app:platform'),
+  openExternal: (url: string): Promise<void> => ipcRenderer.invoke('shell:openExternal', url),
 })

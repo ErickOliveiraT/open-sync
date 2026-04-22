@@ -1,8 +1,8 @@
-import { app, BrowserWindow, ipcMain, dialog, Menu } from 'electron'
+import { app, BrowserWindow, ipcMain, dialog, Menu, shell } from 'electron'
 import { join } from 'path'
 import { readFileSync, writeFileSync, existsSync, mkdirSync, statSync } from 'fs'
 import { randomUUID } from 'crypto'
-import { execFile } from 'child_process'
+import { execFile, execFileSync } from 'child_process'
 import * as http from 'http'
 import * as https from 'https'
 import * as syncManager from './syncManager'
@@ -75,6 +75,16 @@ function reconcileLastRunTimes(): void {
   if (changed) saveTasks(tasks)
 }
 
+function isRcloneInstalled(): boolean {
+  try {
+    const cmd = process.platform === 'win32' ? 'where' : 'which'
+    execFileSync(cmd, ['rclone'])
+    return true
+  } catch {
+    return false
+  }
+}
+
 let mainWindow: BrowserWindow | null = null
 
 function createWindow(): void {
@@ -101,6 +111,10 @@ function createWindow(): void {
 }
 
 function registerIpcHandlers(): void {
+  ipcMain.handle('rclone:check', () => isRcloneInstalled())
+  ipcMain.handle('app:platform', () => process.platform)
+  ipcMain.handle('shell:openExternal', (_, url: string) => shell.openExternal(url))
+
   // --- Task CRUD ---
 
   ipcMain.handle('tasks:getAll', () => { reconcileLastRunTimes(); return loadTasks() })
@@ -165,7 +179,7 @@ function registerIpcHandlers(): void {
 
     syncManager.startSync(taskId, task, mainWindow, {
       onComplete: () => stampLastRun('success'),
-      onError:    () => stampLastRun('error'),
+      onError: () => stampLastRun('error'),
     }, logPath)
   })
 

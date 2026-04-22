@@ -29,6 +29,11 @@ export interface ElectronAPI {
   onComplete: (cb: (payload: CompletePayload) => void) => void
   onError: (cb: (payload: ErrorPayload) => void) => void
   removeAllListeners: (channel: string) => void
+
+  // System checks
+  checkRclone: () => Promise<boolean>
+  getPlatform: () => Promise<string>
+  openExternal: (url: string) => Promise<void>
 }
 
 declare global {
