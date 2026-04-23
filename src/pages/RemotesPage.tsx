@@ -129,6 +129,17 @@ export default function RemotesPage() {
         </div>
       )}
 
+      <div className="flex items-center gap-2 pt-2 border-t border-slate-700/60 text-slate-500 text-xs">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5 shrink-0">
+          <path fillRule="evenodd" d="M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0Zm-7-4a1 1 0 1 1-2 0 1 1 0 0 1 2 0ZM9 9a.75.75 0 0 0 0 1.5h.253a.25.25 0 0 1 .244.304l-.459 2.066A1.75 1.75 0 0 0 10.747 15H11a.75.75 0 0 0 0-1.5h-.253a.25.25 0 0 1-.244-.304l.459-2.066A1.75 1.75 0 0 0 9.253 9H9Z" clipRule="evenodd" />
+        </svg>
+        <p>
+          Remotes can also be configured directly via{' '}
+          <code className="font-mono text-slate-400 bg-slate-700/60 px-1 py-0.5 rounded">rclone config</code>
+          {' '}and will appear here after a refresh.
+        </p>
+      </div>
+
       {!loading && remotes.length > 0 && (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {remotes.map((remote) => (
