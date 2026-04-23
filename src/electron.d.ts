@@ -22,6 +22,10 @@ export interface ElectronAPI {
 
   // Remotes
   listRemotes: () => Promise<string[]>
+  createRemote: (name: string, type: string, params: Record<string, string>) => Promise<void>
+  deleteRemote: (name: string) => Promise<void>
+  authorizeRemote: (name: string, type: string) => Promise<void>
+  obscurePassword: (password: string) => Promise<string>
 
   // Push events from main process
   onStarted: (cb: (payload: StartedPayload) => void) => void

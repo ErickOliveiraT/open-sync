@@ -211,6 +211,57 @@ function registerIpcHandlers(): void {
     })
   })
 
+  ipcMain.handle('remotes:delete', (_event, name: string): Promise<void> => {
+    return new Promise((resolve, reject) => {
+      execFile('rclone', ['config', 'delete', name], (error) => {
+        if (error) { reject(new Error(error.message)); return }
+        resolve()
+      })
+    })
+  })
+
+  ipcMain.handle('remotes:obscure', (_event, password: string): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      execFile('rclone', ['obscure', password], (error, stdout) => {
+        if (error) { reject(new Error(error.message)); return }
+        resolve(stdout.trim())
+      })
+    })
+  })
+
+  ipcMain.handle('remotes:create', (
+    _event,
+    name: string,
+    type: string,
+    params: Record<string, string>
+  ): Promise<void> => {
+    return new Promise((resolve, reject) => {
+      const kvArgs = Object.entries(params).map(([k, v]) => `${k}=${v}`)
+      execFile('rclone', ['config', 'create', name, type, ...kvArgs], (error) => {
+        if (error) { reject(new Error(error.message)); return }
+        resolve()
+      })
+    })
+  })
+
+  ipcMain.handle('remotes:authorize', (_event, name: string, type: string): Promise<void> => {
+    return new Promise((resolve, reject) => {
+      execFile('rclone', ['authorize', type], { timeout: 300_000 }, (error, stdout) => {
+        if (error) { reject(new Error(error.message)); return }
+        const match = stdout.match(/--->\s*(\{[\s\S]*?\})\s*<---/)
+        if (!match) {
+          reject(new Error('Could not parse authorization token from rclone output'))
+          return
+        }
+        const token = match[1].trim()
+        execFile('rclone', ['config', 'create', name, type, `token=${token}`], (err2) => {
+          if (err2) { reject(new Error(err2.message)); return }
+          resolve()
+        })
+      })
+    })
+  })
+
   // --- Native dialogs ---
 
   ipcMain.handle('dialog:openFolder', async () => {

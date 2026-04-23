@@ -32,6 +32,18 @@ contextBridge.exposeInMainWorld('electronAPI', {
   listRemotes: (): Promise<string[]> =>
     ipcRenderer.invoke('remotes:list'),
 
+  createRemote: (name: string, type: string, params: Record<string, string>): Promise<void> =>
+    ipcRenderer.invoke('remotes:create', name, type, params),
+
+  deleteRemote: (name: string): Promise<void> =>
+    ipcRenderer.invoke('remotes:delete', name),
+
+  authorizeRemote: (name: string, type: string): Promise<void> =>
+    ipcRenderer.invoke('remotes:authorize', name, type),
+
+  obscurePassword: (password: string): Promise<string> =>
+    ipcRenderer.invoke('remotes:obscure', password),
+
   // Logs
   readTaskLog: (taskId: string): Promise<string | null> =>
     ipcRenderer.invoke('logs:read', taskId),
