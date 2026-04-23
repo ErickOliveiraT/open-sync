@@ -80,7 +80,7 @@ export default function ExecutionPage() {
 
         {/* rclone command that was executed */}
         {commands[task.id] && (
-          <div className="flex items-start gap-2 rounded-lg bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 px-4 py-2.5 mb-2 font-mono text-xs text-slate-500 dark:text-slate-400 overflow-x-auto">
+          <div className="flex items-start gap-2 rounded-lg bg-slate-200 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 px-4 py-2.5 mb-2 font-mono text-xs text-slate-500 dark:text-slate-400 overflow-x-auto">
             <span className="text-slate-600 select-none shrink-0">$</span>
             <span className="text-slate-600 dark:text-slate-300 break-all">{commands[task.id]}</span>
           </div>

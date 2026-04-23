@@ -29,7 +29,7 @@ export default function LogViewer({ taskId }: Props) {
   }, [logs.length])
 
   return (
-    <div className="rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 h-80 overflow-y-auto p-3 font-mono text-xs">
+    <div className="rounded-xl bg-slate-200 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 h-80 overflow-y-auto p-3 font-mono text-xs">
       {logs.length === 0 ? (
         <span className="text-slate-400 dark:text-slate-600">No logs yet…</span>
       ) : (
