@@ -8,12 +8,14 @@ A desktop app for scheduled folder synchronization. Define sync tasks, set a sch
 
 ## Features
 
-- **Sync & Copy tasks** — mirror or copy between local paths and any rclone remote (Google Drive, S3, Dropbox, etc.)
+- **Sync & Copy tasks** — mirror or copy between local paths and any rclone remote (Google Drive, Dropbox, Box, pCloud, Yandex Disk, Amazon S3, Backblaze B2, Azure Blob, SFTP, FTP, WebDAV, and more)
 - **Scheduled execution** — built-in cron builder with OS-level scheduling (crontab on Linux, Task Scheduler on Windows) that runs even when the app is closed
 - **Live logs** — real-time output during manual runs; saved logs persist for scheduled runs
 - **Filters** — include/exclude rules passed directly to rclone
 - **Webhooks** — fire HTTP GET or POST requests on task success or error
-- **Remotes browser** — lists all configured rclone remotes
+- **Remotes manager** — add and delete rclone remotes directly from the UI; OAuth flow supported for Google Drive, Dropbox, Box, pCloud and Yandex
+- **Light & dark mode** — toggle between themes, preference is persisted across sessions
+- **Collapsible sidebar** — collapse to icon-only mode to save screen space
 
 ## Requirements
 
