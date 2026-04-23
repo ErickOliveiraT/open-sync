@@ -44,11 +44,11 @@ function detectDestType(dest: string): DestType {
   return 'local'
 }
 
-/** Splits "gdrive:backup/photos" → { remote: "gdrive:", path: "backup/photos" } */
+/** Splits "gdrive:backup/photos" → { remote: "gdrive", path: "backup/photos" } */
 function parseRemoteDest(dest: string): { remote: string; path: string } {
   const idx = dest.indexOf(':')
   if (idx === -1) return { remote: '', path: '' }
-  return { remote: dest.slice(0, idx + 1), path: dest.slice(idx + 1) }
+  return { remote: dest.slice(0, idx), path: dest.slice(idx + 1) }
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
@@ -142,8 +142,7 @@ export default function TaskForm({ initialValues, submitLabel, onSubmit, onCance
 
   function buildDestination(): string {
     if (destType === 'local') return destLocal.trim()
-    // remote: "gdrive:" + "backup/photos" → "gdrive:backup/photos"
-    return destRemote + destRemotePath.trim()
+    return `${destRemote}:${destRemotePath.trim()}`
   }
 
   function addWebhook() {
@@ -307,7 +306,7 @@ export default function TaskForm({ initialValues, submitLabel, onSubmit, onCance
                 {destRemote && (
                   <p className="text-xs text-slate-500">
                     Full path:{' '}
-                    <code className="text-slate-400">{destRemote}{destRemotePath.trim()}</code>
+                    <code className="text-slate-400">{destRemote}:{destRemotePath.trim()}</code>
                   </p>
                 )}
               </div>
