@@ -69,8 +69,8 @@ export default function RemotesPage() {
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-white">Remotes</h1>
-          <p className="text-slate-400 text-sm mt-0.5">
+          <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Remotes</h1>
+          <p className="text-slate-500 dark:text-slate-400 text-sm mt-0.5">
             Cloud storage remotes configured in rclone
           </p>
         </div>
@@ -87,7 +87,7 @@ export default function RemotesPage() {
           <button
             onClick={fetchRemotes}
             disabled={loading}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-slate-700 text-slate-300 text-sm hover:bg-slate-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-300 text-sm hover:bg-slate-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
           >
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`}>
               <path fillRule="evenodd" d="M15.312 11.424a5.5 5.5 0 0 1-9.201 2.466l-.312-.311h2.433a.75.75 0 0 0 0-1.5H3.989a.75.75 0 0 0-.75.75v4.242a.75.75 0 0 0 1.5 0v-2.43l.31.31a7 7 0 0 0 11.712-3.138.75.75 0 0 0-1.449-.39Zm1.23-3.723a.75.75 0 0 0 .219-.53V2.929a.75.75 0 0 0-1.5 0V5.36l-.31-.31A7 7 0 0 0 3.239 8.188a.75.75 0 1 0 1.448.389A5.5 5.5 0 0 1 13.89 6.11l.311.31h-2.432a.75.75 0 0 0 0 1.5h4.243a.75.75 0 0 0 .53-.219Z" clipRule="evenodd" />
@@ -98,17 +98,17 @@ export default function RemotesPage() {
       </div>
 
       {loading && (
-        <div className="text-slate-400 text-sm">Loading remotes…</div>
+        <div className="text-slate-500 dark:text-slate-400 text-sm">Loading remotes…</div>
       )}
 
       {error && (
-        <div className="rounded-xl bg-red-900/40 border border-red-700 px-5 py-4 text-red-300 text-sm">
+        <div className="rounded-xl bg-red-50 dark:bg-red-900/40 border border-red-200 dark:border-red-700 px-5 py-4 text-red-600 dark:text-red-300 text-sm">
           Failed to list remotes: {error}
         </div>
       )}
 
       {deleteError && (
-        <div className="rounded-xl bg-red-900/40 border border-red-700 px-5 py-4 text-red-300 text-sm flex items-center justify-between">
+        <div className="rounded-xl bg-red-50 dark:bg-red-900/40 border border-red-200 dark:border-red-700 px-5 py-4 text-red-600 dark:text-red-300 text-sm flex items-center justify-between">
           <span>{deleteError}</span>
           <button
             onClick={() => setDeleteError(null)}
@@ -120,22 +120,22 @@ export default function RemotesPage() {
       )}
 
       {!loading && !error && remotes.length === 0 && (
-        <div className="rounded-xl bg-slate-800 p-8 text-center text-slate-500">
+        <div className="rounded-xl bg-white dark:bg-slate-800 p-8 text-center text-slate-500">
           <div className="text-4xl mb-3">☁️</div>
-          <p className="text-lg font-medium text-slate-400 mb-1">No remotes configured</p>
+          <p className="text-lg font-medium text-slate-500 dark:text-slate-400 mb-1">No remotes configured</p>
           <p className="text-sm">
-            Click <strong className="text-slate-300">Add Remote</strong> to get started.
+            Click <strong className="text-slate-700 dark:text-slate-300">Add Remote</strong> to get started.
           </p>
         </div>
       )}
 
-      <div className="flex items-center gap-2 pt-2 border-t border-slate-700/60 text-slate-500 text-xs">
+      <div className="flex items-center gap-2 pt-2 border-t border-slate-200 dark:border-slate-700/60 text-slate-500 text-xs">
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5 shrink-0">
           <path fillRule="evenodd" d="M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0Zm-7-4a1 1 0 1 1-2 0 1 1 0 0 1 2 0ZM9 9a.75.75 0 0 0 0 1.5h.253a.25.25 0 0 1 .244.304l-.459 2.066A1.75 1.75 0 0 0 10.747 15H11a.75.75 0 0 0 0-1.5h-.253a.25.25 0 0 1-.244-.304l.459-2.066A1.75 1.75 0 0 0 9.253 9H9Z" clipRule="evenodd" />
         </svg>
         <p>
           Remotes can also be configured directly via{' '}
-          <code className="font-mono text-slate-400 bg-slate-700/60 px-1 py-0.5 rounded">rclone config</code>
+          <code className="font-mono text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-700/60 px-1 py-0.5 rounded">rclone config</code>
           {' '}and will appear here after a refresh.
         </p>
       </div>
@@ -145,16 +145,16 @@ export default function RemotesPage() {
           {remotes.map((remote) => (
             <div
               key={remote}
-              className="relative flex items-center gap-4 rounded-xl bg-slate-800 px-5 py-4 group"
+              className="relative flex items-center gap-4 rounded-xl bg-white dark:bg-slate-800 px-5 py-4 group"
             >
               <span className="text-2xl">{remoteIcon(remote)}</span>
               <div className="min-w-0 flex-1">
-                <p className="text-white font-medium truncate">{remote}</p>
+                <p className="text-slate-900 dark:text-white font-medium truncate">{remote}</p>
                 <p className="text-xs text-slate-500 mt-0.5">rclone remote</p>
               </div>
               <button
                 onClick={() => { setDeletingRemote(remote); setDeleteError(null) }}
-                className="p-2 rounded-lg bg-slate-700 text-slate-400 hover:bg-red-700 hover:text-white transition-colors shrink-0 opacity-0 group-hover:opacity-100"
+                className="p-2 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 hover:bg-red-700 hover:text-slate-900 dark:text-white transition-colors shrink-0 opacity-0 group-hover:opacity-100"
                 title={`Delete ${remote}`}
               >
                 <TrashIcon />

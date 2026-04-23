@@ -195,15 +195,15 @@ export default function CronBuilder({ value, onChange }: Props) {
   return (
     <div className="space-y-4">
       {/* Frequency tabs */}
-      <div className="flex flex-wrap border-b border-slate-600">
+      <div className="flex flex-wrap border-b border-slate-200 dark:border-slate-600">
         {FREQ_TABS.map(tab => (
           <button
             key={tab.id}
             type="button"
             onClick={() => setMode(tab.id)}
             className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px ${mode === tab.id
-              ? 'border-blue-500 text-blue-400'
-              : 'border-transparent text-slate-400 hover:text-slate-200'
+              ? 'border-blue-500 text-blue-500 dark:text-blue-400'
+              : 'border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-200'
               }`}
           >
             {tab.label}
@@ -215,23 +215,23 @@ export default function CronBuilder({ value, onChange }: Props) {
       <div className="min-h-[72px]">
         {mode === 'minutes' && (
           <div className="flex items-center gap-3">
-            <span className="text-sm text-slate-400">Every</span>
+            <span className="text-sm text-slate-500 dark:text-slate-400">Every</span>
             <select value={everyN} onChange={e => setEveryN(+e.target.value)} className="input w-24">
               {EVERY_N_OPTS.map(n => <option key={n} value={n}>{n}</option>)}
             </select>
-            <span className="text-sm text-slate-400">minute(s)</span>
+            <span className="text-sm text-slate-500 dark:text-slate-400">minute(s)</span>
           </div>
         )}
 
         {mode === 'hourly' && (
           <div className="flex items-center gap-3">
-            <span className="text-sm text-slate-400">At minute</span>
+            <span className="text-sm text-slate-500 dark:text-slate-400">At minute</span>
             <select value={hourlyMin} onChange={e => setHourlyMin(+e.target.value)} className="input w-20 text-center">
               {Array.from({ length: 60 }, (_, i) => (
                 <option key={i} value={i}>{String(i).padStart(2, '0')}</option>
               ))}
             </select>
-            <span className="text-sm text-slate-400">of every hour</span>
+            <span className="text-sm text-slate-500 dark:text-slate-400">of every hour</span>
           </div>
         )}
 
@@ -250,7 +250,7 @@ export default function CronBuilder({ value, onChange }: Props) {
                     onChange={() => toggleDay(d.value)}
                     className="accent-blue-500 w-4 h-4"
                   />
-                  <span className="text-sm text-slate-300">{d.label}</span>
+                  <span className="text-sm text-slate-600 dark:text-slate-300">{d.label}</span>
                 </label>
               ))}
             </div>
@@ -261,13 +261,13 @@ export default function CronBuilder({ value, onChange }: Props) {
         {mode === 'monthly' && (
           <div className="space-y-3">
             <div className="flex items-center gap-3">
-              <span className="text-sm text-slate-400">On day</span>
+              <span className="text-sm text-slate-500 dark:text-slate-400">On day</span>
               <select value={monthDay} onChange={e => setMonthDay(+e.target.value)} className="input w-20">
                 {Array.from({ length: 31 }, (_, i) => (
                   <option key={i + 1} value={i + 1}>{i + 1}</option>
                 ))}
               </select>
-              <span className="text-sm text-slate-400">of every month</span>
+              <span className="text-sm text-slate-500 dark:text-slate-400">of every month</span>
             </div>
             <TimeSelect hour={timeHour} minute={timeMin} onHour={setTimeHour} onMinute={setTimeMin} />
           </div>
@@ -276,7 +276,7 @@ export default function CronBuilder({ value, onChange }: Props) {
         {mode === 'yearly' && (
           <div className="space-y-3">
             <div className="flex items-center gap-3 flex-wrap">
-              <span className="text-sm text-slate-400">Every year on</span>
+              <span className="text-sm text-slate-500 dark:text-slate-400">Every year on</span>
               <select value={yearMonth} onChange={e => setYearMonth(+e.target.value)} className="input w-36">
                 {MONTH_NAMES.slice(1).map((name, i) => (
                   <option key={i + 1} value={i + 1}>{name}</option>
@@ -306,7 +306,7 @@ export default function CronBuilder({ value, onChange }: Props) {
                 Invalid expression. Expected 5 fields: minute hour day-of-month month day-of-week.
               </p>
             )}
-            <p className="text-xs text-slate-600">
+            <p className="text-xs text-slate-400 dark:text-slate-600">
               Format: <code className="text-slate-500">minute hour day-of-month month day-of-week</code>
               {' '}— ex: <code className="text-slate-500">30 9 * * 1-5</code>
             </p>
@@ -316,9 +316,9 @@ export default function CronBuilder({ value, onChange }: Props) {
 
       {/* Generated cron display */}
       {(mode !== 'custom' || (customCron && customValid)) && (
-        <div className="rounded-lg bg-slate-900 border border-slate-700 px-4 py-3 space-y-1">
-          <code className="text-blue-400 font-mono text-sm">{generatedCron}</code>
-          {desc && <p className="text-xs text-slate-500">{desc}</p>}
+        <div className="rounded-lg bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 px-4 py-3 space-y-1">
+          <code className="text-blue-500 dark:text-blue-400 font-mono text-sm">{generatedCron}</code>
+          {desc && <p className="text-xs text-slate-400 dark:text-slate-500">{desc}</p>}
         </div>
       )}
     </div>

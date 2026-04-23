@@ -17,11 +17,11 @@ export default function NewTaskPage() {
       <div className="flex items-center gap-3 mb-6">
         <button
           onClick={() => navigate('/tasks')}
-          className="text-slate-400 hover:text-white transition-colors"
+          className="text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors"
         >
           ← Back
         </button>
-        <h1 className="text-xl font-bold text-white">New Sync Task</h1>
+        <h1 className="text-xl font-bold text-slate-900 dark:text-white">New Sync Task</h1>
       </div>
 
       <TaskForm

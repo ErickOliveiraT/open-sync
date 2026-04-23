@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
+import { ThemeProvider } from './context/ThemeContext'
 import { HashRouter as BrowserRouter, Routes, Route } from 'react-router-dom'
 import { useSyncEvents } from './hooks/useSyncEvents'
 import Layout from './components/Layout'
@@ -59,5 +60,9 @@ export default function App() {
     return <RcloneNotFound platform={platform} onRetry={runCheck} />
   }
 
-  return <AppRoutes />
+  return (
+    <ThemeProvider>
+      <AppRoutes />
+    </ThemeProvider>
+  )
 }

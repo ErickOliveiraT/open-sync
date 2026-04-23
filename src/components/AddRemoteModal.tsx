@@ -207,21 +207,21 @@ export default function AddRemoteModal({ onSuccess, onCancel }: Props) {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 dark:bg-black/60"
       onClick={isPending ? undefined : onCancel}
     >
       <div
-        className="w-full max-w-md rounded-2xl bg-slate-800 border border-slate-700 shadow-xl p-6"
+        className="w-full max-w-md rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-xl p-6"
         onClick={(e) => e.stopPropagation()}
       >
 
         {/* ── Step 1: Name + Type ── */}
         {step === 'type-select' && (
           <div className="space-y-5">
-            <h2 className="text-lg font-semibold text-white">Add Remote</h2>
+            <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Add Remote</h2>
 
             <div>
-              <label className="block text-sm font-medium text-slate-300 mb-1.5">Remote name</label>
+              <label className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1.5">Remote name</label>
               <input
                 type="text"
                 value={remoteName}
@@ -237,7 +237,7 @@ export default function AddRemoteModal({ onSuccess, onCancel }: Props) {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-slate-300 mb-2">Storage type</label>
+              <label className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-2">Storage type</label>
               <div className="grid grid-cols-3 gap-2">
                 {(Object.keys(REMOTE_META) as RemoteType[]).map((type) => (
                   <button
@@ -246,14 +246,14 @@ export default function AddRemoteModal({ onSuccess, onCancel }: Props) {
                     onClick={() => setRemoteType(type)}
                     className={`flex flex-col items-center gap-1 px-3 py-3 rounded-xl border text-sm font-medium transition-colors ${
                       remoteType === type
-                        ? 'border-blue-500 bg-blue-600/20 text-white'
-                        : 'border-slate-600 bg-slate-700/50 text-slate-400 hover:border-slate-400 hover:text-slate-200'
+                        ? 'border-blue-500 bg-blue-600/20 text-blue-700 dark:text-white'
+                        : 'border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-700/50 text-slate-500 dark:text-slate-400 hover:border-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
                     }`}
                   >
                     <img
                       src={REMOTE_META[type].logo}
                       alt={REMOTE_META[type].label}
-                      className={`w-7 h-7 object-contain invert ${remoteType === type ? 'opacity-100' : 'opacity-50'}`}
+                      className={`w-7 h-7 object-contain dark:invert ${remoteType === type ? 'opacity-100' : 'opacity-40 dark:opacity-50'}`}
                     />
                     <span className="text-xs leading-tight text-center">{REMOTE_META[type].label}</span>
                   </button>
@@ -284,24 +284,24 @@ export default function AddRemoteModal({ onSuccess, onCancel }: Props) {
         {step === 'oauth-flow' && (
           <div className="space-y-5">
             <div className="flex items-center gap-3">
-              <img src={REMOTE_META[remoteType].logo} alt={REMOTE_META[remoteType].label} className="w-8 h-8 object-contain invert" />
+              <img src={REMOTE_META[remoteType].logo} alt={REMOTE_META[remoteType].label} className="w-8 h-8 object-contain dark:invert" />
               <div>
-                <h2 className="text-lg font-semibold text-white">{REMOTE_META[remoteType].label}</h2>
-                <p className="text-xs text-slate-500">{remoteName}</p>
+                <h2 className="text-lg font-semibold text-slate-900 dark:text-white">{REMOTE_META[remoteType].label}</h2>
+                <p className="text-xs text-slate-400 dark:text-slate-500">{remoteName}</p>
               </div>
             </div>
 
             {oauthStatus === 'idle' && (
               <>
-                <p className="text-sm text-slate-400">
-                  Clicking <strong className="text-slate-200">Authorize</strong> will open your browser.
+                <p className="text-sm text-slate-500 dark:text-slate-400">
+                  Clicking <strong className="text-slate-700 dark:text-slate-200">Authorize</strong> will open your browser.
                   Complete the sign-in there, then return to this window.
                 </p>
                 <div className="flex justify-end gap-3">
                   <button
                     type="button"
                     onClick={() => setStep('type-select')}
-                    className="px-4 py-2 rounded-lg bg-slate-700 text-slate-300 text-sm hover:bg-slate-600 transition-colors"
+                    className="px-4 py-2 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 text-sm hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors"
                   >
                     Back
                   </button>
@@ -322,9 +322,9 @@ export default function AddRemoteModal({ onSuccess, onCancel }: Props) {
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
                 </svg>
-                <p className="text-sm text-slate-400 text-center">
+                <p className="text-sm text-slate-500 dark:text-slate-400 text-center">
                   Authorizing…<br />
-                  <span className="text-slate-500 text-xs">Complete the sign-in in your browser, then return here.</span>
+                  <span className="text-slate-400 dark:text-slate-500 text-xs">Complete the sign-in in your browser, then return here.</span>
                 </p>
               </div>
             )}
@@ -349,14 +349,14 @@ export default function AddRemoteModal({ onSuccess, onCancel }: Props) {
 
             {oauthStatus === 'error' && (
               <div className="space-y-4">
-                <div className="rounded-lg bg-red-900/40 border border-red-700 px-4 py-3 text-red-300 text-sm">
+                <div className="rounded-lg bg-red-50 dark:bg-red-900/40 border border-red-200 dark:border-red-700 px-4 py-3 text-red-600 dark:text-red-300 text-sm">
                   {oauthError}
                 </div>
                 <div className="flex justify-end gap-3">
                   <button
                     type="button"
                     onClick={() => setStep('type-select')}
-                    className="px-4 py-2 rounded-lg bg-slate-700 text-slate-300 text-sm hover:bg-slate-600 transition-colors"
+                    className="px-4 py-2 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 text-sm hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors"
                   >
                     Back
                   </button>
@@ -377,10 +377,10 @@ export default function AddRemoteModal({ onSuccess, onCancel }: Props) {
         {step === 'form-fields' && (
           <div className="space-y-5">
             <div className="flex items-center gap-3">
-              <img src={REMOTE_META[remoteType].logo} alt={REMOTE_META[remoteType].label} className="w-8 h-8 object-contain invert" />
+              <img src={REMOTE_META[remoteType].logo} alt={REMOTE_META[remoteType].label} className="w-8 h-8 object-contain dark:invert" />
               <div>
-                <h2 className="text-lg font-semibold text-white">{REMOTE_META[remoteType].label}</h2>
-                <p className="text-xs text-slate-500">{remoteName}</p>
+                <h2 className="text-lg font-semibold text-slate-900 dark:text-white">{REMOTE_META[remoteType].label}</h2>
+                <p className="text-xs text-slate-400 dark:text-slate-500">{remoteName}</p>
               </div>
             </div>
 
@@ -388,7 +388,7 @@ export default function AddRemoteModal({ onSuccess, onCancel }: Props) {
             {remoteType === 's3' && (
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-1.5">Provider</label>
+                  <label className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1.5">Provider</label>
                   <div className="flex gap-2 flex-wrap">
                     {(['AWS', 'Cloudflare', 'Wasabi', 'Minio', 'Other'] as S3Provider[]).map((p) => (
                       <button
@@ -397,8 +397,8 @@ export default function AddRemoteModal({ onSuccess, onCancel }: Props) {
                         onClick={() => setS3Provider(p)}
                         className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors ${
                           s3Provider === p
-                            ? 'border-blue-500 bg-blue-600/20 text-white'
-                            : 'border-slate-600 text-slate-400 hover:border-slate-400 hover:text-slate-200'
+                            ? 'border-blue-500 bg-blue-600/20 text-blue-700 dark:text-white'
+                            : 'border-slate-200 dark:border-slate-600 text-slate-500 dark:text-slate-400 hover:border-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
                         }`}
                       >
                         {p === 'Cloudflare' ? 'Cloudflare R2' : p === 'Other' ? 'Other (S3-compatible)' : p}
@@ -416,7 +416,7 @@ export default function AddRemoteModal({ onSuccess, onCancel }: Props) {
               <div className="space-y-4">
                 {(FORM_FIELDS[remoteType] ?? []).map((def) => (
                   <div key={def.key}>
-                    <label className="block text-sm font-medium text-slate-300 mb-1.5">{def.label}</label>
+                    <label className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1.5">{def.label}</label>
                     {def.options ? (
                       <select
                         value={fields[def.key] ?? def.options[0]}
@@ -442,7 +442,7 @@ export default function AddRemoteModal({ onSuccess, onCancel }: Props) {
             )}
 
             {submitError && (
-              <div className="rounded-lg bg-red-900/40 border border-red-700 px-4 py-3 text-red-300 text-xs font-mono break-all">
+              <div className="rounded-lg bg-red-50 dark:bg-red-900/40 border border-red-200 dark:border-red-700 px-4 py-3 text-red-600 dark:text-red-300 text-xs font-mono break-all">
                 {submitError}
               </div>
             )}
@@ -486,7 +486,7 @@ function S3Fields({
   return (
     <div className="space-y-4">
       <div>
-        <label className="block text-sm font-medium text-slate-300 mb-1.5">Access Key ID</label>
+        <label className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1.5">Access Key ID</label>
         <input
           type="text"
           value={fields.access_key_id ?? ''}
@@ -496,7 +496,7 @@ function S3Fields({
         />
       </div>
       <div>
-        <label className="block text-sm font-medium text-slate-300 mb-1.5">Secret Access Key</label>
+        <label className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1.5">Secret Access Key</label>
         <input
           type="password"
           value={fields.secret_access_key ?? ''}
@@ -507,7 +507,7 @@ function S3Fields({
       </div>
       {provider === 'AWS' && (
         <div>
-          <label className="block text-sm font-medium text-slate-300 mb-1.5">Region</label>
+          <label className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1.5">Region</label>
           <input
             type="text"
             value={fields.region ?? ''}
@@ -519,7 +519,7 @@ function S3Fields({
       )}
       {provider === 'Cloudflare' && (
         <div>
-          <label className="block text-sm font-medium text-slate-300 mb-1.5">Account ID</label>
+          <label className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1.5">Account ID</label>
           <input
             type="text"
             value={fields.account_id ?? ''}
@@ -527,14 +527,14 @@ function S3Fields({
             placeholder="your-cloudflare-account-id"
             className="input w-full"
           />
-          <p className="text-xs text-slate-500 mt-1">
-            Endpoint will be set to <code className="text-slate-400">{'<account-id>.r2.cloudflarestorage.com'}</code>
+          <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">
+            Endpoint will be set to <code className="text-slate-500 dark:text-slate-400">{'<account-id>.r2.cloudflarestorage.com'}</code>
           </p>
         </div>
       )}
       {(provider === 'Minio' || provider === 'Other') && (
         <div>
-          <label className="block text-sm font-medium text-slate-300 mb-1.5">Endpoint URL</label>
+          <label className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1.5">Endpoint URL</label>
           <input
             type="text"
             value={fields.endpoint ?? ''}

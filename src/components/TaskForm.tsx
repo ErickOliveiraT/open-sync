@@ -185,15 +185,15 @@ export default function TaskForm({ initialValues, submitLabel, onSubmit, onCance
   return (
     <form onSubmit={handleSubmit} className="space-y-0">
       {/* Tab bar */}
-      <div className="flex border-b border-slate-700 mb-6">
+      <div className="flex border-b border-slate-200 dark:border-slate-700 mb-6">
         {TABS.map((tab) => (
           <button
             key={tab.id}
             type="button"
             onClick={() => setActiveTab(tab.id)}
             className={`px-5 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px ${activeTab === tab.id
-              ? 'border-blue-500 text-white'
-              : 'border-transparent text-slate-400 hover:text-slate-200'
+              ? 'border-blue-500 text-slate-900 dark:text-white'
+              : 'border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-200'
               }`}
           >
             {tab.label}
@@ -228,7 +228,7 @@ export default function TaskForm({ initialValues, submitLabel, onSubmit, onCance
               <button
                 type="button"
                 onClick={() => pickFolder(setSource)}
-                className="px-3 py-2 rounded-lg bg-slate-700 text-slate-300 text-sm hover:bg-slate-600 transition-colors"
+                className="px-3 py-2 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 text-sm hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors"
               >
                 Browse
               </button>
@@ -236,7 +236,7 @@ export default function TaskForm({ initialValues, submitLabel, onSubmit, onCance
           </Field>
 
           <Field label="Destination">
-            <div className="flex gap-1 p-1 rounded-lg bg-slate-700 w-fit mb-3">
+            <div className="flex gap-1 p-1 rounded-lg bg-slate-100 dark:bg-slate-700 w-fit mb-3">
               {(['local', 'remote'] as const).map((t) => (
                 <button
                   key={t}
@@ -244,7 +244,7 @@ export default function TaskForm({ initialValues, submitLabel, onSubmit, onCance
                   onClick={() => setDestType(t)}
                   className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors capitalize ${destType === t
                     ? 'bg-blue-600 text-white shadow'
-                    : 'text-slate-400 hover:text-white'
+                    : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
                     }`}
                 >
                   {t === 'local' ? '📁 Local folder' : '☁️ Remote'}
@@ -265,7 +265,7 @@ export default function TaskForm({ initialValues, submitLabel, onSubmit, onCance
                 <button
                   type="button"
                   onClick={() => pickFolder(setDestLocal)}
-                  className="px-3 py-2 rounded-lg bg-slate-700 text-slate-300 text-sm hover:bg-slate-600 transition-colors"
+                  className="px-3 py-2 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 text-sm hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors"
                 >
                   Browse
                 </button>
@@ -277,9 +277,9 @@ export default function TaskForm({ initialValues, submitLabel, onSubmit, onCance
                 {loadingRemotes ? (
                   <p className="text-sm text-slate-400">Loading remotes…</p>
                 ) : remotes.length === 0 ? (
-                  <div className="rounded-lg bg-slate-700 border border-slate-600 px-4 py-3 text-sm text-slate-400">
+                  <div className="rounded-lg bg-slate-100 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 px-4 py-3 text-sm text-slate-500 dark:text-slate-400">
                     No remotes configured. Run{' '}
-                    <code className="bg-slate-800 text-slate-300 px-1 rounded">rclone config</code>{' '}
+                    <code className="bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 px-1 rounded">rclone config</code>{' '}
                     in a terminal to add one.
                   </div>
                 ) : (
@@ -304,9 +304,9 @@ export default function TaskForm({ initialValues, submitLabel, onSubmit, onCance
                   </div>
                 )}
                 {destRemote && (
-                  <p className="text-xs text-slate-500">
+                  <p className="text-xs text-slate-400 dark:text-slate-500">
                     Full path:{' '}
-                    <code className="text-slate-400">{destRemote}:{destRemotePath.trim()}</code>
+                    <code className="text-slate-600 dark:text-slate-400">{destRemote}:{destRemotePath.trim()}</code>
                   </p>
                 )}
               </div>
@@ -330,8 +330,8 @@ export default function TaskForm({ initialValues, submitLabel, onSubmit, onCance
                     onChange={() => setType(t)}
                     className="accent-blue-500"
                   />
-                  <span className="text-sm text-slate-300 capitalize">{t}</span>
-                  <span className="text-xs text-slate-500">
+                  <span className="text-sm text-slate-600 dark:text-slate-300 capitalize">{t}</span>
+                  <span className="text-xs text-slate-400 dark:text-slate-500">
                     {t === 'sync' ? '(mirror — deletes removed files)' : '(copy — keeps destination files)'}
                   </span>
                 </label>
@@ -367,7 +367,7 @@ export default function TaskForm({ initialValues, submitLabel, onSubmit, onCance
                   <button
                     type="button"
                     onClick={() => removeFilter(idx)}
-                    className="p-2 rounded-lg bg-slate-700 text-slate-400 hover:bg-red-700 hover:text-white transition-colors shrink-0"
+                    className="p-2 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-400 hover:bg-red-700 hover:text-white transition-colors shrink-0"
                     title="Remove filter"
                   >
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
@@ -380,13 +380,13 @@ export default function TaskForm({ initialValues, submitLabel, onSubmit, onCance
               <button
                 type="button"
                 onClick={addFilter}
-                className="flex items-center gap-2 px-3 py-2 rounded-lg border border-dashed border-slate-600 text-slate-400 text-sm hover:border-slate-400 hover:text-slate-300 transition-colors w-full justify-center"
+                className="flex items-center gap-2 px-3 py-2 rounded-lg border border-dashed border-slate-300 dark:border-slate-600 text-slate-400 text-sm hover:border-slate-500 dark:hover:border-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors w-full justify-center"
               >
                 <span className="text-lg leading-none">+</span> Add filter
               </button>
 
               {filters.length > 0 && (
-                <p className="text-xs text-slate-600">
+                <p className="text-xs text-slate-400 dark:text-slate-600">
                   All filters must be of the same type. Filters are passed to rclone as{' '}
                   <code className="text-slate-500">--{filters[0].type}=/node_modules/*</code>
                 </p>
@@ -406,7 +406,7 @@ export default function TaskForm({ initialValues, submitLabel, onSubmit, onCance
               onChange={e => setScheduleEnabled(e.target.checked)}
               className="accent-blue-500 w-4 h-4"
             />
-            <span className="text-sm font-medium text-slate-300">Enable scheduled execution</span>
+            <span className="text-sm font-medium text-slate-600 dark:text-slate-300">Enable scheduled execution</span>
           </label>
 
           {scheduleEnabled && (
@@ -419,14 +419,14 @@ export default function TaskForm({ initialValues, submitLabel, onSubmit, onCance
       {activeTab === 'webhooks' && (
         <div className="space-y-4">
           {webhooks.length === 0 ? (
-            <p className="text-sm text-slate-500 py-2">
+            <p className="text-sm text-slate-400 dark:text-slate-500 py-2">
               No webhooks configured. Requests will be fired automatically after task execution.
             </p>
           ) : (
             webhooks.map((wh, idx) => {
               const payloadInvalid = wh.method === 'POST' && wh.payload.trim() !== '' && !isValidJson(wh.payload)
               return (
-                <div key={idx} className="rounded-lg border border-slate-700 bg-slate-800/50 p-4 space-y-3">
+                <div key={idx} className="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 p-4 space-y-3">
                   {/* Row 1: method + trigger + remove */}
                   <div className="flex items-center gap-3">
                     <select
@@ -449,7 +449,7 @@ export default function TaskForm({ initialValues, submitLabel, onSubmit, onCance
                     <button
                       type="button"
                       onClick={() => removeWebhook(idx)}
-                      className="p-2 rounded-lg bg-slate-700 text-slate-400 hover:bg-red-700 hover:text-white transition-colors shrink-0"
+                      className="p-2 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-400 hover:bg-red-700 hover:text-white transition-colors shrink-0"
                       title="Remove webhook"
                     >
                       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
@@ -491,7 +491,7 @@ export default function TaskForm({ initialValues, submitLabel, onSubmit, onCance
           <button
             type="button"
             onClick={addWebhook}
-            className="flex items-center gap-2 px-3 py-2 rounded-lg border border-dashed border-slate-600 text-slate-400 text-sm hover:border-slate-400 hover:text-slate-300 transition-colors w-full justify-center"
+            className="flex items-center gap-2 px-3 py-2 rounded-lg border border-dashed border-slate-300 dark:border-slate-600 text-slate-400 text-sm hover:border-slate-500 dark:hover:border-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors w-full justify-center"
           >
             <span className="text-lg leading-none">+</span> Add webhook
           </button>
@@ -510,7 +510,7 @@ export default function TaskForm({ initialValues, submitLabel, onSubmit, onCance
         <button
           type="button"
           onClick={onCancel}
-          className="px-5 py-2.5 rounded-lg bg-slate-700 text-slate-300 hover:bg-slate-600 transition-colors"
+          className="px-5 py-2.5 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors"
         >
           Cancel
         </button>

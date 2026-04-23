@@ -67,16 +67,16 @@ export default function LogsPage() {
       <div className="flex items-center gap-3">
         <button
           onClick={() => navigate('/')}
-          className="text-slate-400 hover:text-white transition-colors"
+          className="text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors"
         >
           ← Back
         </button>
         <div className="flex-1">
-          <h1 className="text-xl font-bold text-white">
+          <h1 className="text-xl font-bold text-slate-900 dark:text-white">
             {task ? task.name : 'Execution Log'}
           </h1>
           {task && (
-            <p className="text-xs text-slate-400 mt-0.5">
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
               {task.source} → {task.destination}
             </p>
           )}
@@ -85,14 +85,14 @@ export default function LogsPage() {
 
       {/* Command */}
       {commandLine && (
-        <div className="flex items-start gap-2 rounded-lg bg-slate-950 border border-slate-700 px-4 py-2.5 font-mono text-xs text-slate-400 overflow-x-auto">
+        <div className="flex items-start gap-2 rounded-lg bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 px-4 py-2.5 font-mono text-xs text-slate-500 dark:text-slate-400 overflow-x-auto">
           <span className="text-slate-600 select-none shrink-0">$</span>
-          <span className="text-slate-300 break-all">{commandLine.msg}</span>
+          <span className="text-slate-600 dark:text-slate-300 break-all">{commandLine.msg}</span>
         </div>
       )}
 
       {/* Log content */}
-      <div className="rounded-xl bg-slate-900 border border-slate-700 h-[28rem] overflow-y-auto p-3 font-mono text-xs">
+      <div className="rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 h-[28rem] overflow-y-auto p-3 font-mono text-xs">
         {lines === null ? (
           <span className="text-slate-500">Loading…</span>
         ) : logLines.length === 0 ? (

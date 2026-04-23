@@ -37,7 +37,7 @@ export default function ExecutionPage() {
 
   if (!task) {
     return (
-      <div className="p-6 text-slate-400">
+      <div className="p-6 text-slate-500 dark:text-slate-400">
         Task not found.{' '}
         <button className="text-blue-400 underline" onClick={() => navigate('/tasks')}>
           Go back
@@ -54,13 +54,13 @@ export default function ExecutionPage() {
       <div className="flex items-center gap-3 mb-6">
         <button
           onClick={() => navigate('/tasks')}
-          className="text-slate-400 hover:text-white transition-colors"
+          className="text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors"
         >
           ← Back
         </button>
         <div className="flex-1">
-          <h1 className="text-xl font-bold text-white">{task.name}</h1>
-          <p className="text-xs text-slate-400 mt-0.5">
+          <h1 className="text-xl font-bold text-slate-900 dark:text-white">{task.name}</h1>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
             {task.source} → {task.destination}
           </p>
         </div>
@@ -70,19 +70,19 @@ export default function ExecutionPage() {
 
       {/* Progress */}
       <div className="mb-4">
-        <h2 className="text-sm font-semibold text-slate-400 uppercase tracking-wide mb-2">Progress</h2>
+        <h2 className="text-sm font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-2">Progress</h2>
         <ProgressPanel taskId={task.id} />
       </div>
 
       {/* Logs */}
       <div className="mb-6">
-        <h2 className="text-sm font-semibold text-slate-400 uppercase tracking-wide mb-2">Logs</h2>
+        <h2 className="text-sm font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-2">Logs</h2>
 
         {/* rclone command that was executed */}
         {commands[task.id] && (
-          <div className="flex items-start gap-2 rounded-lg bg-slate-950 border border-slate-700 px-4 py-2.5 mb-2 font-mono text-xs text-slate-400 overflow-x-auto">
+          <div className="flex items-start gap-2 rounded-lg bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 px-4 py-2.5 mb-2 font-mono text-xs text-slate-500 dark:text-slate-400 overflow-x-auto">
             <span className="text-slate-600 select-none shrink-0">$</span>
-            <span className="text-slate-300 break-all">{commands[task.id]}</span>
+            <span className="text-slate-600 dark:text-slate-300 break-all">{commands[task.id]}</span>
           </div>
         )}
 
@@ -101,7 +101,7 @@ export default function ExecutionPage() {
         )}
         <button
           onClick={() => navigate('/tasks')}
-          className="px-5 py-2 rounded-lg bg-slate-700 text-slate-300 text-sm hover:bg-slate-600 transition-colors"
+          className="px-5 py-2 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 text-sm hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors"
         >
           {isRunning ? 'Back (sync continues)' : 'Back to Tasks'}
         </button>

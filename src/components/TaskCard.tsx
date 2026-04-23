@@ -11,7 +11,7 @@ interface Props {
 }
 
 const STATUS_STYLES: Record<string, string> = {
-  idle:    'bg-slate-600 text-slate-200',
+  idle:    'bg-slate-200 dark:bg-slate-600 text-slate-700 dark:text-slate-200',
   running: 'bg-blue-600 text-white animate-pulse',
   success: 'bg-green-600 text-white',
   error:   'bg-red-600 text-white',
@@ -46,7 +46,6 @@ export default function TaskCard({ task, onDeleted }: Props) {
 
   async function handleRun() {
     if (isRunning) {
-      // Task already running — just navigate back to the execution view
       navigate(`/tasks/${task.id}/run`)
       return
     }
@@ -66,11 +65,10 @@ export default function TaskCard({ task, onDeleted }: Props) {
 
   return (
     <>
-      <div className="flex items-center gap-4 rounded-xl bg-slate-800 px-5 py-4 shadow">
-        {/* Task info */}
+      <div className="flex items-center gap-4 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-transparent px-5 py-4 shadow-sm">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1">
-            <span className="font-semibold text-white truncate">{task.name}</span>
+            <span className="font-semibold text-slate-900 dark:text-white truncate">{task.name}</span>
             <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${TYPE_STYLES[task.type]}`}>
               {task.type}
             </span>
@@ -79,23 +77,22 @@ export default function TaskCard({ task, onDeleted }: Props) {
             </span>
           </div>
           <div className="text-xs text-slate-400 truncate">
-            <span className="text-slate-300">{task.source}</span>
+            <span className="text-slate-600 dark:text-slate-300">{task.source}</span>
             <span className="mx-2">→</span>
-            <span className="text-slate-300">{task.destination}</span>
+            <span className="text-slate-600 dark:text-slate-300">{task.destination}</span>
           </div>
           <div className="text-xs mt-1">
             {task.schedule ? (() => {
               const next = nextCronRun(task.schedule)
               return next
-                ? <span className="text-slate-400">Next run: <span className="text-slate-200">{formatNextRun(next)}</span></span>
-                : <span className="text-slate-500">Next run: unavailable</span>
+                ? <span className="text-slate-400">Next run: <span className="text-slate-600 dark:text-slate-200">{formatNextRun(next)}</span></span>
+                : <span className="text-slate-400">Next run: unavailable</span>
             })() : (
-              <span className="text-slate-600">Not scheduled</span>
+              <span className="text-slate-400 dark:text-slate-600">Not scheduled</span>
             )}
           </div>
         </div>
 
-        {/* Actions */}
         <div className="flex items-center gap-2 shrink-0">
           <button
             onClick={handleRun}
@@ -106,7 +103,7 @@ export default function TaskCard({ task, onDeleted }: Props) {
           <button
             onClick={() => navigate(`/tasks/${task.id}/edit`)}
             disabled={isRunning}
-            className="p-2 rounded-lg bg-slate-700 text-slate-300 hover:bg-slate-600 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            className="p-2 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 hover:text-slate-900 dark:hover:text-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
             title="Edit task"
           >
             <EditIcon />
@@ -114,7 +111,7 @@ export default function TaskCard({ task, onDeleted }: Props) {
           <button
             onClick={() => setShowConfirm(true)}
             disabled={isRunning}
-            className="p-2 rounded-lg bg-slate-700 text-slate-300 hover:bg-red-700 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            className="p-2 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-300 hover:bg-red-700 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
             title="Delete task"
           >
             <TrashIcon />

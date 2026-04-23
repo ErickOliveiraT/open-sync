@@ -48,13 +48,13 @@ export default function HomePage() {
   return (
     <div className="p-6 space-y-8">
       <div>
-        <h1 className="text-2xl font-bold text-white">Home</h1>
-        <p className="text-slate-400 text-sm mt-0.5">Overview of your sync activity</p>
+        <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Home</h1>
+        <p className="text-slate-500 dark:text-slate-400 text-sm mt-0.5">Overview of your sync activity</p>
       </div>
 
       {/* Stats */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-        <StatCard label="Total tasks"   value={totalTasks}   color="text-white" />
+        <StatCard label="Total tasks"   value={totalTasks}   color="text-slate-900 dark:text-white" />
         <StatCard label="Running"       value={runningCount}  color="text-blue-400" />
         <StatCard label="Last succeeded" value={successCount} color="text-green-400" />
         <StatCard label="Last errored"  value={errorCount}   color="text-red-400" />
@@ -62,12 +62,12 @@ export default function HomePage() {
 
       {/* Recent executions */}
       <div>
-        <h2 className="text-sm font-semibold text-slate-400 uppercase tracking-wide mb-3">
+        <h2 className="text-sm font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-3">
           Recent executions
         </h2>
 
         {recentTasks.length === 0 ? (
-          <div className="rounded-xl bg-slate-800 p-8 text-center text-slate-500">
+          <div className="rounded-xl bg-white dark:bg-slate-800 p-8 text-center text-slate-500">
             {totalTasks === 0 ? (
               <>
                 <p className="text-lg mb-2">No tasks yet</p>
@@ -96,14 +96,14 @@ export default function HomePage() {
               <div
                 key={task.id}
                 onClick={() => navigate(`/tasks/${task.id}/logs`)}
-                className="flex items-center gap-4 rounded-xl bg-slate-800 px-5 py-3 cursor-pointer hover:bg-slate-700 transition-colors"
+                className="flex items-center gap-4 rounded-xl bg-white dark:bg-slate-800 px-5 py-3 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
               >
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
-                    <span className="font-medium text-white truncate">{task.name}</span>
+                    <span className="font-medium text-slate-900 dark:text-white truncate">{task.name}</span>
                     <StatusBadge status={task.status} />
                   </div>
-                  <p className="text-xs text-slate-400 mt-0.5 truncate">
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 truncate">
                     {task.source} → {task.destination}
                   </p>
                 </div>
@@ -121,9 +121,9 @@ export default function HomePage() {
 
 function StatCard({ label, value, color }: { label: string; value: number; color: string }) {
   return (
-    <div className="rounded-xl bg-slate-800 px-5 py-4">
+    <div className="rounded-xl bg-white dark:bg-slate-800 px-5 py-4">
       <div className={`text-3xl font-bold ${color}`}>{value}</div>
-      <div className="text-xs text-slate-400 mt-1">{label}</div>
+      <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">{label}</div>
     </div>
   )
 }

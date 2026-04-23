@@ -6,10 +6,10 @@ interface Props {
 }
 
 const LEVEL_STYLES: Record<string, string> = {
-  debug: 'text-slate-500',
-  info: 'text-slate-300',
-  warning: 'text-amber-400',
-  error: 'text-red-400 border-l-2 border-red-500 pl-2',
+  debug: 'text-slate-400 dark:text-slate-500',
+  info: 'text-slate-700 dark:text-slate-300',
+  warning: 'text-amber-600 dark:text-amber-400',
+  error: 'text-red-500 dark:text-red-400 border-l-2 border-red-500 pl-2',
 }
 
 function formatTime(iso: string): string {
@@ -24,19 +24,18 @@ export default function LogViewer({ taskId }: Props) {
   const logs = useSyncStore((s) => s.logs[taskId] ?? [])
   const bottomRef = useRef<HTMLDivElement>(null)
 
-  // Auto-scroll to the bottom whenever new log entries arrive
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [logs.length])
 
   return (
-    <div className="rounded-xl bg-slate-900 border border-slate-700 h-80 overflow-y-auto p-3 font-mono text-xs">
+    <div className="rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 h-80 overflow-y-auto p-3 font-mono text-xs">
       {logs.length === 0 ? (
-        <span className="text-slate-600">No logs yet…</span>
+        <span className="text-slate-400 dark:text-slate-600">No logs yet…</span>
       ) : (
         logs.map((entry, i) => (
           <div key={i} className={`mb-0.5 ${LEVEL_STYLES[entry.level] ?? LEVEL_STYLES.info}`}>
-            <span className="text-slate-600 mr-2">{formatTime(entry.timestamp)}</span>
+            <span className="text-slate-400 dark:text-slate-600 mr-2">{formatTime(entry.timestamp)}</span>
             <span className="uppercase mr-2 opacity-70">[{entry.level}]</span>
             <span>{entry.msg}</span>
           </div>
