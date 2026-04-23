@@ -204,7 +204,7 @@ function registerIpcHandlers(): void {
         }
         const remotes = stdout
           .split('\n')
-          .map((l) => l.trim())
+          .map((l) => l.trim().replace(/:$/, ''))
           .filter((l) => l.length > 0)
         resolve(remotes)
       })
