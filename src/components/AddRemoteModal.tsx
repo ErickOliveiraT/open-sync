@@ -1,4 +1,15 @@
 import { useEffect, useState } from 'react'
+import driveLogo    from '../assets/providers/drive.svg'
+import dropboxLogo  from '../assets/providers/dropbox.svg'
+import boxLogo      from '../assets/providers/box.svg'
+import pcloudLogo   from '../assets/providers/pcloud.svg'
+import yandexLogo   from '../assets/providers/yandex.svg'
+import s3Logo       from '../assets/providers/s3.svg'
+import b2Logo       from '../assets/providers/b2.svg'
+import azureLogo    from '../assets/providers/azureblob.svg'
+import sftpLogo     from '../assets/providers/sftp.svg'
+import ftpLogo      from '../assets/providers/ftp.svg'
+import webdavLogo   from '../assets/providers/webdav.svg'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -25,18 +36,18 @@ interface FieldDef {
 
 const OAUTH_TYPES = new Set<RemoteType>(['drive', 'dropbox', 'box', 'pcloud', 'yandex'])
 
-const REMOTE_META: Record<RemoteType, { label: string; icon: string }> = {
-  drive:    { label: 'Google Drive',  icon: '📁' },
-  dropbox:  { label: 'Dropbox',       icon: '📦' },
-  box:      { label: 'Box',           icon: '🗂️' },
-  pcloud:   { label: 'pCloud',        icon: '☁️' },
-  yandex:   { label: 'Yandex Disk',   icon: '🌐' },
-  s3:       { label: 'Amazon S3',     icon: '🪣' },
-  b2:       { label: 'Backblaze B2',  icon: '🗄️' },
-  azureblob:{ label: 'Azure Blob',    icon: '🔷' },
-  sftp:     { label: 'SFTP',          icon: '🖥️' },
-  ftp:      { label: 'FTP',           icon: '📡' },
-  webdav:   { label: 'WebDAV',        icon: '🌍' },
+const REMOTE_META: Record<RemoteType, { label: string; logo: string }> = {
+  drive:    { label: 'Google Drive',  logo: driveLogo   },
+  dropbox:  { label: 'Dropbox',       logo: dropboxLogo },
+  box:      { label: 'Box',           logo: boxLogo     },
+  pcloud:   { label: 'pCloud',        logo: pcloudLogo  },
+  yandex:   { label: 'Yandex Disk',   logo: yandexLogo  },
+  s3:       { label: 'Amazon S3',     logo: s3Logo      },
+  b2:       { label: 'Backblaze B2',  logo: b2Logo      },
+  azureblob:{ label: 'Azure Blob',    logo: azureLogo   },
+  sftp:     { label: 'SFTP',          logo: sftpLogo    },
+  ftp:      { label: 'FTP',           logo: ftpLogo     },
+  webdav:   { label: 'WebDAV',        logo: webdavLogo  },
 }
 
 const S3_ENDPOINTS: Partial<Record<S3Provider, string>> = {
@@ -239,7 +250,11 @@ export default function AddRemoteModal({ onSuccess, onCancel }: Props) {
                         : 'border-slate-600 bg-slate-700/50 text-slate-400 hover:border-slate-400 hover:text-slate-200'
                     }`}
                   >
-                    <span className="text-xl">{REMOTE_META[type].icon}</span>
+                    <img
+                      src={REMOTE_META[type].logo}
+                      alt={REMOTE_META[type].label}
+                      className={`w-7 h-7 object-contain invert ${remoteType === type ? 'opacity-100' : 'opacity-50'}`}
+                    />
                     <span className="text-xs leading-tight text-center">{REMOTE_META[type].label}</span>
                   </button>
                 ))}
@@ -269,7 +284,7 @@ export default function AddRemoteModal({ onSuccess, onCancel }: Props) {
         {step === 'oauth-flow' && (
           <div className="space-y-5">
             <div className="flex items-center gap-3">
-              <span className="text-2xl">{REMOTE_META[remoteType].icon}</span>
+              <img src={REMOTE_META[remoteType].logo} alt={REMOTE_META[remoteType].label} className="w-8 h-8 object-contain invert" />
               <div>
                 <h2 className="text-lg font-semibold text-white">{REMOTE_META[remoteType].label}</h2>
                 <p className="text-xs text-slate-500">{remoteName}</p>
@@ -362,7 +377,7 @@ export default function AddRemoteModal({ onSuccess, onCancel }: Props) {
         {step === 'form-fields' && (
           <div className="space-y-5">
             <div className="flex items-center gap-3">
-              <span className="text-2xl">{REMOTE_META[remoteType].icon}</span>
+              <img src={REMOTE_META[remoteType].logo} alt={REMOTE_META[remoteType].label} className="w-8 h-8 object-contain invert" />
               <div>
                 <h2 className="text-lg font-semibold text-white">{REMOTE_META[remoteType].label}</h2>
                 <p className="text-xs text-slate-500">{remoteName}</p>
