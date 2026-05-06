@@ -12,6 +12,7 @@ const NAV_ITEMS: NavItem[] = [
   { to: '/', label: 'Home', icon: '⌂' },
   { to: '/tasks', label: 'Tasks', icon: '⇄' },
   { to: '/remotes', label: 'Remotes', icon: '☁' },
+  { to: '/settings', label: 'Settings', icon: '⚙' },
 ]
 
 function SunIcon() {

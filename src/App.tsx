@@ -11,6 +11,7 @@ import EditTaskPage from './pages/EditTaskPage'
 import ExecutionPage from './pages/ExecutionPage'
 import LogsPage from './pages/LogsPage'
 import RemotesPage from './pages/RemotesPage'
+import SettingsPage from './pages/SettingsPage'
 
 type CheckState = 'loading' | 'ok' | 'missing'
 
@@ -27,6 +28,7 @@ function AppRoutes() {
           <Route path="/tasks/:id/run"  element={<ExecutionPage />} />
           <Route path="/tasks/:id/logs" element={<LogsPage />} />
           <Route path="/remotes"       element={<RemotesPage />} />
+          <Route path="/settings"      element={<SettingsPage />} />
         </Route>
       </Routes>
     </BrowserRouter>

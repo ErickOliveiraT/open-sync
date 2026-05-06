@@ -271,6 +271,50 @@ function registerIpcHandlers(): void {
     })
     return result.filePaths[0] ?? null
   })
+
+  // --- Backup / Restore ---
+
+  ipcMain.handle('tasks:export', async (): Promise<{ success: boolean; filePath?: string; error?: string }> => {
+    if (!mainWindow) return { success: false, error: 'No window' }
+    const date = new Date().toISOString().slice(0, 10)
+    const result = await dialog.showSaveDialog(mainWindow, {
+      title: 'Export tasks',
+      defaultPath: `opensync-backup-${date}.json`,
+      filters: [{ name: 'JSON', extensions: ['json'] }],
+    })
+    if (result.canceled || !result.filePath) return { success: false }
+    try {
+      const backup = { version: 1, exportedAt: new Date().toISOString(), tasks: loadTasks() }
+      writeFileSync(result.filePath, JSON.stringify(backup, null, 2), 'utf-8')
+      return { success: true, filePath: result.filePath }
+    } catch (e) {
+      return { success: false, error: e instanceof Error ? e.message : 'Failed to write file' }
+    }
+  })
+
+  ipcMain.handle('tasks:import', async (): Promise<{ success: boolean; count?: number; error?: string }> => {
+    if (!mainWindow) return { success: false, error: 'No window' }
+    const result = await dialog.showOpenDialog(mainWindow, {
+      title: 'Restore tasks from backup',
+      filters: [{ name: 'JSON', extensions: ['json'] }],
+      properties: ['openFile'],
+    })
+    if (result.canceled || !result.filePaths[0]) return { success: false }
+    try {
+      const raw = JSON.parse(readFileSync(result.filePaths[0], 'utf-8'))
+      if (!raw.tasks || !Array.isArray(raw.tasks)) return { success: false, error: 'Invalid backup file' }
+      const existing = loadTasks()
+      for (const t of existing) scheduler.unregister(t.id)
+      const tasks: SyncTask[] = raw.tasks.map((t: SyncTask) => ({ ...t, status: 'idle' as const }))
+      saveTasks(tasks)
+      for (const t of tasks) {
+        if (t.schedule) scheduler.register(t, app.getPath('userData'))
+      }
+      return { success: true, count: tasks.length }
+    } catch (e) {
+      return { success: false, error: e instanceof Error ? e.message : 'Failed to parse file' }
+    }
+  })
 }
 
 app.whenReady().then(() => {

@@ -72,4 +72,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   checkRclone: (): Promise<boolean> => ipcRenderer.invoke('rclone:check'),
   getPlatform: (): Promise<string> => ipcRenderer.invoke('app:platform'),
   openExternal: (url: string): Promise<void> => ipcRenderer.invoke('shell:openExternal', url),
+
+  exportTasks: (): Promise<{ success: boolean; filePath?: string; error?: string }> =>
+    ipcRenderer.invoke('tasks:export'),
+
+  importTasks: (): Promise<{ success: boolean; count?: number; error?: string }> =>
+    ipcRenderer.invoke('tasks:import'),
 })

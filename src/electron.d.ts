@@ -38,6 +38,10 @@ export interface ElectronAPI {
   checkRclone: () => Promise<boolean>
   getPlatform: () => Promise<string>
   openExternal: (url: string) => Promise<void>
+
+  // Backup / Restore
+  exportTasks: () => Promise<{ success: boolean; filePath?: string; error?: string }>
+  importTasks: () => Promise<{ success: boolean; count?: number; error?: string }>
 }
 
 declare global {
