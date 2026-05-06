@@ -30,25 +30,22 @@ interface Props {
   onCancel: () => void
 }
 
-type DestType = 'local' | 'remote'
+type PathType = 'local' | 'remote'
 
-/** Detects whether a stored destination string is local or remote. */
-function detectDestType(dest: string): DestType {
-  if (!dest) return 'local'
-  // Windows absolute paths like C:\...
-  if (/^[A-Za-z]:[/\\]/.test(dest)) return 'local'
-  // Unix absolute paths or home-relative
-  if (dest.startsWith('/') || dest.startsWith('~')) return 'local'
-  // rclone remote format: remotename:path
-  if (dest.includes(':')) return 'remote'
+/** Detects whether a stored path string is local or remote. */
+function detectPathType(path: string): PathType {
+  if (!path) return 'local'
+  if (/^[A-Za-z]:[/\\]/.test(path)) return 'local'
+  if (path.startsWith('/') || path.startsWith('~')) return 'local'
+  if (path.includes(':')) return 'remote'
   return 'local'
 }
 
 /** Splits "gdrive:backup/photos" → { remote: "gdrive", path: "backup/photos" } */
-function parseRemoteDest(dest: string): { remote: string; path: string } {
-  const idx = dest.indexOf(':')
+function parseRemotePath(s: string): { remote: string; path: string } {
+  const idx = s.indexOf(':')
   if (idx === -1) return { remote: '', path: '' }
-  return { remote: dest.slice(0, idx), path: dest.slice(idx + 1) }
+  return { remote: s.slice(0, idx), path: s.slice(idx + 1) }
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
@@ -62,27 +59,48 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 
 export default function TaskForm({ initialValues, submitLabel, onSubmit, onCancel }: Props) {
   const [name, setName] = useState(initialValues?.name ?? '')
-  const [source, setSource] = useState(initialValues?.source ?? '')
   const [type, setType] = useState<TaskType>(initialValues?.type ?? 'sync')
 
+  // Source
+  const [srcType, setSrcType] = useState<PathType>(() =>
+    detectPathType(initialValues?.source ?? '')
+  )
+  const [srcLocal, setSrcLocal] = useState(() =>
+    detectPathType(initialValues?.source ?? '') === 'local'
+      ? (initialValues?.source ?? '')
+      : ''
+  )
+  const [srcRemote, setSrcRemote] = useState(() => {
+    if (detectPathType(initialValues?.source ?? '') === 'remote') {
+      return parseRemotePath(initialValues!.source).remote
+    }
+    return ''
+  })
+  const [srcRemotePath, setSrcRemotePath] = useState(() => {
+    if (detectPathType(initialValues?.source ?? '') === 'remote') {
+      return parseRemotePath(initialValues!.source).path
+    }
+    return ''
+  })
+
   // Destination
-  const [destType, setDestType] = useState<DestType>(() =>
-    detectDestType(initialValues?.destination ?? '')
+  const [destType, setDestType] = useState<PathType>(() =>
+    detectPathType(initialValues?.destination ?? '')
   )
   const [destLocal, setDestLocal] = useState(() =>
-    detectDestType(initialValues?.destination ?? '') === 'local'
+    detectPathType(initialValues?.destination ?? '') === 'local'
       ? (initialValues?.destination ?? '')
       : ''
   )
   const [destRemote, setDestRemote] = useState(() => {
-    if (detectDestType(initialValues?.destination ?? '') === 'remote') {
-      return parseRemoteDest(initialValues!.destination).remote
+    if (detectPathType(initialValues?.destination ?? '') === 'remote') {
+      return parseRemotePath(initialValues!.destination).remote
     }
     return ''
   })
   const [destRemotePath, setDestRemotePath] = useState(() => {
-    if (detectDestType(initialValues?.destination ?? '') === 'remote') {
-      return parseRemoteDest(initialValues!.destination).path
+    if (detectPathType(initialValues?.destination ?? '') === 'remote') {
+      return parseRemotePath(initialValues!.destination).path
     }
     return ''
   })
@@ -125,19 +143,24 @@ export default function TaskForm({ initialValues, submitLabel, onSubmit, onCance
   }
 
   useEffect(() => {
-    if (destType !== 'remote') return
+    if (srcType !== 'remote' && destType !== 'remote') return
     setLoadingRemotes(true)
     window.electronAPI.listRemotes().then((list) => {
       setRemotes(list)
-      // Auto-select first remote if none selected yet
-      if (!destRemote && list.length > 0) setDestRemote(list[0])
+      if (srcType === 'remote' && !srcRemote && list.length > 0) setSrcRemote(list[0])
+      if (destType === 'remote' && !destRemote && list.length > 0) setDestRemote(list[0])
       setLoadingRemotes(false)
     })
-  }, [destType])
+  }, [srcType, destType])
 
   async function pickFolder(setter: (v: string) => void) {
     const path = await window.electronAPI.openFolder()
     if (path) setter(path)
+  }
+
+  function buildSource(): string {
+    if (srcType === 'local') return srcLocal.trim()
+    return `${srcRemote}:${srcRemotePath.trim()}`
   }
 
   function buildDestination(): string {
@@ -164,8 +187,9 @@ export default function TaskForm({ initialValues, submitLabel, onSubmit, onCance
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
+    const source = buildSource()
     const destination = buildDestination()
-    if (!name.trim() || !source.trim() || !destination) return
+    if (!name.trim() || !source || !destination) return
     if (scheduleEnabled && !isValidCron(schedule)) return
     const invalidWebhook = webhooks.find(
       (w) => !w.url.trim() || (w.method === 'POST' && !isValidJson(w.payload))
@@ -215,24 +239,82 @@ export default function TaskForm({ initialValues, submitLabel, onSubmit, onCance
             />
           </Field>
 
-          <Field label="Source folder (local)">
-            <div className="flex gap-2">
-              <input
-                type="text"
-                value={source}
-                onChange={(e) => setSource(e.target.value)}
-                placeholder="/home/user/Documents"
-                required
-                className="input flex-1"
-              />
-              <button
-                type="button"
-                onClick={() => pickFolder(setSource)}
-                className="px-3 py-2 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 text-sm hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors"
-              >
-                Browse
-              </button>
+          <Field label="Source">
+            <div className="flex gap-1 p-1 rounded-lg bg-slate-100 dark:bg-slate-700 w-fit mb-3">
+              {(['local', 'remote'] as const).map((t) => (
+                <button
+                  key={t}
+                  type="button"
+                  onClick={() => setSrcType(t)}
+                  className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors capitalize ${srcType === t
+                    ? 'bg-blue-600 text-white shadow'
+                    : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                    }`}
+                >
+                  {t === 'local' ? '📁 Local folder' : '☁️ Remote'}
+                </button>
+              ))}
             </div>
+
+            {srcType === 'local' && (
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={srcLocal}
+                  onChange={(e) => setSrcLocal(e.target.value)}
+                  placeholder="/home/user/Documents"
+                  required
+                  className="input flex-1"
+                />
+                <button
+                  type="button"
+                  onClick={() => pickFolder(setSrcLocal)}
+                  className="px-3 py-2 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 text-sm hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors"
+                >
+                  Browse
+                </button>
+              </div>
+            )}
+
+            {srcType === 'remote' && (
+              <div className="space-y-2">
+                {loadingRemotes ? (
+                  <p className="text-sm text-slate-400">Loading remotes…</p>
+                ) : remotes.length === 0 ? (
+                  <div className="rounded-lg bg-slate-100 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 px-4 py-3 text-sm text-slate-500 dark:text-slate-400">
+                    No remotes configured. Run{' '}
+                    <code className="bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 px-1 rounded">rclone config</code>{' '}
+                    in a terminal to add one.
+                  </div>
+                ) : (
+                  <div className="flex gap-2">
+                    <select
+                      value={srcRemote}
+                      onChange={(e) => setSrcRemote(e.target.value)}
+                      className="input w-48 shrink-0"
+                      required
+                    >
+                      {remotes.map((r) => (
+                        <option key={r} value={r}>{r}</option>
+                      ))}
+                    </select>
+                    <input
+                      type="text"
+                      value={srcRemotePath}
+                      onChange={(e) => setSrcRemotePath(e.target.value)}
+                      placeholder="path/within/remote  (optional)"
+                      className="input flex-1"
+                    />
+                  </div>
+                )}
+                {srcRemote && (
+                  <p className="text-xs text-slate-400 dark:text-slate-500">
+                    Full path:{' '}
+                    <code className="text-slate-600 dark:text-slate-400">{srcRemote}:{srcRemotePath.trim()}</code>
+                  </p>
+                )}
+              </div>
+            )}
           </Field>
 
           <Field label="Destination">
@@ -502,7 +584,7 @@ export default function TaskForm({ initialValues, submitLabel, onSubmit, onCance
       <div className="flex gap-3 pt-8">
         <button
           type="submit"
-          disabled={submitting || (destType === 'remote' && remotes.length === 0)}
+          disabled={submitting || ((srcType === 'remote' || destType === 'remote') && remotes.length === 0)}
           className="flex-1 py-2.5 rounded-lg bg-blue-600 text-white font-medium hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
         >
           {submitting ? 'Saving…' : submitLabel}

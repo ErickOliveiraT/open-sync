@@ -20,8 +20,8 @@ export interface Webhook {
 export interface SyncTask {
   id: string
   name: string
-  source: string       // absolute local path
-  destination: string  // rclone remote, e.g. "gdrive:backup" or "/tmp/dest"
+  source: string       // local path or rclone remote, e.g. "/home/user/docs" or "gdrive:backup"
+  destination: string  // local path or rclone remote, e.g. "gdrive:backup" or "/tmp/dest"
   type: TaskType
   status: TaskStatus
   filters?: TaskFilter[]
