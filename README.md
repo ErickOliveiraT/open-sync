@@ -46,6 +46,16 @@ Output goes to `release/`. Platform targets:
 | Linux    | AppImage |
 | Windows  | NSIS installer |
 
+## Reinstalling on Linux after code changes
+
+Run the install script — it rebuilds and updates the app menu entry automatically:
+
+```bash
+bash scripts/install_linux.sh
+```
+
+Then launch OpenSync once so it re-registers all scheduled tasks with the updated runner scripts.
+
 ## Running on Linux
 
 Electron requires sandbox configuration that may not be available in all environments. If the app fails to start, run with:
