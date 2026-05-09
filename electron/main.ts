@@ -142,7 +142,7 @@ function registerIpcHandlers(): void {
       if (updated.schedule) {
         scheduler.register(updated, app.getPath('userData'))
       } else {
-        scheduler.unregister(id)
+        scheduler.unregister(id, app.getPath('userData'))
       }
     }
   })
@@ -150,7 +150,7 @@ function registerIpcHandlers(): void {
   ipcMain.handle('tasks:delete', (_, id: string) => {
     const tasks = loadTasks().filter((t) => t.id !== id)
     saveTasks(tasks)
-    scheduler.unregister(id)
+    scheduler.unregister(id, app.getPath('userData'))
   })
 
   // --- Sync control ---
@@ -304,7 +304,7 @@ function registerIpcHandlers(): void {
       const raw = JSON.parse(readFileSync(result.filePaths[0], 'utf-8'))
       if (!raw.tasks || !Array.isArray(raw.tasks)) return { success: false, error: 'Invalid backup file' }
       const existing = loadTasks()
-      for (const t of existing) scheduler.unregister(t.id)
+      for (const t of existing) scheduler.unregister(t.id, app.getPath('userData'))
       const tasks: SyncTask[] = raw.tasks.map((t: SyncTask) => ({ ...t, status: 'idle' as const }))
       saveTasks(tasks)
       for (const t of tasks) {

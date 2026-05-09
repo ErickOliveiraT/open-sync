@@ -2,7 +2,7 @@ import { spawnSync } from 'child_process'
 import { existsSync, mkdirSync, writeFileSync, unlinkSync } from 'fs'
 import { join } from 'path'
 import { tmpdir } from 'os'
-import type { SyncTask } from '../src/types'
+import type { SyncTask, Webhook } from '../src/types'
 
 // ── Rclone args ───────────────────────────────────────────────────────────────
 
@@ -25,6 +25,26 @@ function findRclonePath(): string {
   return 'rclone'
 }
 
+// ── Webhook curl helpers ──────────────────────────────────────────────────────
+
+function unixCurlCmd(webhook: Webhook): string {
+  const url = webhook.url.replace(/'/g, "'\\''")
+  if (webhook.method === 'POST') {
+    const payload = (webhook.payload.trim() || '{}').replace(/'/g, "'\\''")
+    return `curl -fsS -o /dev/null -X POST -H 'Content-Type: application/json' -d '${payload}' '${url}'`
+  }
+  return `curl -fsS -o /dev/null '${url}'`
+}
+
+function winCurlCmd(webhook: Webhook): string {
+  const url = webhook.url.replace(/"/g, '""')
+  if (webhook.method === 'POST') {
+    const payload = (webhook.payload.trim() || '{}').replace(/"/g, '""')
+    return `curl.exe -fsS -o nul -X POST -H "Content-Type: application/json" -d "${payload}" "${url}"`
+  }
+  return `curl.exe -fsS -o nul "${url}"`
+}
+
 // ── Linux / macOS — crontab ───────────────────────────────────────────────────
 
 const MARKER = '# opensync:'
@@ -38,9 +58,48 @@ function setCrontab(content: string): void {
   spawnSync('crontab', ['-'], { input: content, encoding: 'utf-8' })
 }
 
+function writeUnixRunnerScript(task: SyncTask, rclone: string, quoted: string, logPath: string): string {
+  const scriptPath = logPath.replace(/\.log$/, '.sh')
+  const logsDir = logPath.substring(0, logPath.lastIndexOf('/'))
+
+  const successCmds = (task.webhooks ?? [])
+    .filter(wh => wh.trigger === 'success')
+    .map(wh => `  ${unixCurlCmd(wh)}`)
+    .join('\n') || '  :'
+
+  const errorCmds = (task.webhooks ?? [])
+    .filter(wh => wh.trigger === 'error')
+    .map(wh => `  ${unixCurlCmd(wh)}`)
+    .join('\n') || '  :'
+
+  const script = [
+    '#!/bin/bash',
+    `mkdir -p "${logsDir}"`,
+    `"${rclone}" ${quoted} > "${logPath}" 2>&1`,
+    '_RC=$?',
+    'if [ $_RC -eq 0 ]; then',
+    successCmds,
+    'else',
+    errorCmds,
+    'fi',
+    'exit $_RC',
+    '',
+  ].join('\n')
+
+  writeFileSync(scriptPath, script, { encoding: 'utf-8' })
+  return scriptPath
+}
+
 function unixUnregister(taskId: string): void {
-  const lines = getCrontab().split('\n').filter(l => !l.includes(`${MARKER}${taskId}`))
-  const content = lines.join('\n').trimEnd()
+  const lines = getCrontab().split('\n')
+  const marker = `${MARKER}${taskId}`
+  const existing = lines.find(l => l.includes(marker))
+  if (existing) {
+    const m = existing.match(/bash "([^"]+)"/)
+    if (m) try { unlinkSync(m[1]) } catch { /* ignore */ }
+  }
+  const filtered = lines.filter(l => !l.includes(marker))
+  const content = filtered.join('\n').trimEnd()
   setCrontab(content ? content + '\n' : '')
 }
 
@@ -54,8 +113,8 @@ function unixRegister(task: SyncTask, logPath: string): void {
     if (a.startsWith('--')) return a
     return `"${a.replace(/"/g, '\\"')}"`
   }).join(' ')
-  const logsDir = logPath.substring(0, logPath.lastIndexOf('/'))
-  const line = `${task.schedule} mkdir -p "${logsDir}" && "${rclone}" ${quoted} > "${logPath}" 2>&1 ${MARKER}${task.id}`
+  const scriptPath = writeUnixRunnerScript(task, rclone, quoted, logPath)
+  const line = `${task.schedule} bash "${scriptPath}" ${MARKER}${task.id}`
   const current = getCrontab().trimEnd()
   setCrontab((current ? current + '\n' : '') + line + '\n')
 }
@@ -182,16 +241,40 @@ function cronToTriggerXml(cron: string): string {
   </CalendarTrigger>`
 }
 
-function buildTaskXml(task: SyncTask, logPath: string): string {
-  const rclone = findRclonePath()
-  const args = [...buildRcloneArgs(task), '--use-json-log', '--verbose']
-  const argsStr = args.map(a => {
-    if (a.startsWith('--')) return a
-    return a.includes(' ') ? `"${a.replace(/"/g, '\\"')}"` : a
-  }).join(' ')
+function writeWinRunnerScript(task: SyncTask, rclone: string, argsStr: string, logPath: string): string {
+  const batPath = logPath.replace(/\.log$/, '.bat')
+  const sepIdx = Math.max(logPath.lastIndexOf('/'), logPath.lastIndexOf('\\'))
+  const logsDir = logPath.substring(0, sepIdx)
 
-  // Wrap in cmd.exe so shell redirection (>) is available for log output
-  const cmdArgs = `/c "${rclone}" ${argsStr} > "${logPath}" 2>&1`
+  const successCmds = (task.webhooks ?? [])
+    .filter(wh => wh.trigger === 'success')
+    .map(wh => `  ${winCurlCmd(wh)}`)
+    .join('\r\n') || '  rem no success webhooks'
+
+  const errorCmds = (task.webhooks ?? [])
+    .filter(wh => wh.trigger === 'error')
+    .map(wh => `  ${winCurlCmd(wh)}`)
+    .join('\r\n') || '  rem no error webhooks'
+
+  const bat = [
+    '@echo off',
+    `if not exist "${logsDir}" mkdir "${logsDir}"`,
+    `"${rclone}" ${argsStr} > "${logPath}" 2>&1`,
+    'set RC=%ERRORLEVEL%',
+    'if %RC%==0 (',
+    successCmds,
+    ') else (',
+    errorCmds,
+    ')',
+    'exit /b %RC%',
+  ].join('\r\n')
+
+  writeFileSync(batPath, bat, { encoding: 'utf-8' })
+  return batPath
+}
+
+function buildTaskXml(task: SyncTask, batPath: string): string {
+  const cmdArgs = `/c "${batPath}"`
 
   return `<?xml version="1.0" encoding="UTF-16"?>
 <Task version="1.2" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
@@ -220,7 +303,14 @@ function buildTaskXml(task: SyncTask, logPath: string): string {
 
 function winRegister(task: SyncTask, logPath: string): void {
   const taskName = winTaskName(task.id)
-  const xml = buildTaskXml(task, logPath)
+  const rclone = findRclonePath()
+  const args = [...buildRcloneArgs(task), '--use-json-log', '--verbose']
+  const argsStr = args.map(a => {
+    if (a.startsWith('--')) return a
+    return a.includes(' ') ? `"${a.replace(/"/g, '\\"')}"` : a
+  }).join(' ')
+  const batPath = writeWinRunnerScript(task, rclone, argsStr, logPath)
+  const xml = buildTaskXml(task, batPath)
   const tmpPath = join(tmpdir(), `opensync_${task.id}.xml`)
   try {
     writeFileSync(tmpPath, xml, { encoding: 'utf16le' })
@@ -231,8 +321,12 @@ function winRegister(task: SyncTask, logPath: string): void {
   }
 }
 
-function winUnregister(taskId: string): void {
+function winUnregister(taskId: string, userDataPath?: string): void {
   spawnSync('schtasks', ['/delete', '/tn', winTaskName(taskId), '/f'], { encoding: 'utf-8' })
+  if (userDataPath) {
+    const batPath = join(userDataPath, 'logs', `${taskId}.bat`)
+    try { unlinkSync(batPath) } catch { /* ignore */ }
+  }
 }
 
 function winListManagedIds(): string[] {
@@ -260,9 +354,9 @@ export function register(task: SyncTask, userDataPath: string): void {
   }
 }
 
-export function unregister(taskId: string): void {
+export function unregister(taskId: string, userDataPath?: string): void {
   if (process.platform === 'win32') {
-    winUnregister(taskId)
+    winUnregister(taskId, userDataPath)
   } else {
     unixUnregister(taskId)
   }
@@ -279,7 +373,7 @@ export function syncAll(tasks: SyncTask[], userDataPath: string): void {
   // Clean up orphaned OS entries (task was deleted but OS entry remains)
   const managed = process.platform === 'win32' ? winListManagedIds() : unixListManagedIds()
   for (const id of managed) {
-    if (!taskIds.has(id)) unregister(id)
+    if (!taskIds.has(id)) unregister(id, userDataPath)
   }
 
   // Register tasks with schedules; clean up those without
@@ -287,7 +381,7 @@ export function syncAll(tasks: SyncTask[], userDataPath: string): void {
     if (task.schedule) {
       register(task, userDataPath)
     } else {
-      unregister(task.id)
+      unregister(task.id, userDataPath)
     }
   }
 }
