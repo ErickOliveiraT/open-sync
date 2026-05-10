@@ -44,7 +44,30 @@ Output goes to `release/`. Platform targets:
 | Platform | Format |
 |----------|--------|
 | Linux    | AppImage |
-| Windows  | NSIS installer |
+| macOS    | DMG |
+| Windows  | NSIS installer (`.exe`) |
+
+## Building on Windows
+
+```powershell
+npm run dist
+```
+
+This compiles the React frontend with Vite and packages everything into an NSIS installer (`.exe`) via `electron-builder`. The output is placed in `release/`.
+
+To generate a portable executable instead (no installer required):
+
+```powershell
+npx electron-builder --win portable
+```
+
+Or add `portable` as an additional target in `package.json`:
+
+```json
+"win": {
+  "target": ["nsis", "portable"]
+}
+```
 
 ## Reinstalling on Linux after code changes
 
