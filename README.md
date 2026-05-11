@@ -91,8 +91,8 @@ Electron requires sandbox configuration that may not be available in all environ
 
 All task configuration and logs are stored in the Electron user data directory:
 
-- **Linux**: `~/.config/OpenSync/`
-- **Windows**: `%APPDATA%\OpenSync\`
+- **Linux**: `~/.config/open-sync/`
+- **Windows**: `%APPDATA%\open-sync\`
 
 ## Tech stack
 

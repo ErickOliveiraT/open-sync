@@ -36,13 +36,16 @@ function unixCurlCmd(webhook: Webhook): string {
   return `curl -fsS -o /dev/null '${url}'`
 }
 
-function winCurlCmd(webhook: Webhook): string {
-  const url = webhook.url.replace(/"/g, '""')
+function psWebhookCmd(webhook: Webhook): string {
+  const url = webhook.url.replace(/'/g, "''")
   if (webhook.method === 'POST') {
-    const payload = (webhook.payload.trim() || '{}').replace(/"/g, '""')
-    return `curl.exe -fsS -o nul -X POST -H "Content-Type: application/json" -d "${payload}" "${url}"`
+    let payload: string
+    try { payload = JSON.stringify(JSON.parse(webhook.payload.trim() || '{}')) }
+    catch { payload = (webhook.payload.trim() || '{}').replace(/\s*\n\s*/g, ' ') }
+    payload = payload.replace(/'/g, "''")
+    return `  try { Invoke-RestMethod -Method POST -Uri '${url}' -ContentType 'application/json' -Body '${payload}' -ErrorAction Stop } catch {}`
   }
-  return `curl.exe -fsS -o nul "${url}"`
+  return `  try { Invoke-RestMethod -Uri '${url}' -ErrorAction Stop } catch {}`
 }
 
 // ── Linux / macOS — crontab ───────────────────────────────────────────────────
@@ -128,204 +131,114 @@ function unixListManagedIds(): string[] {
     })
 }
 
-// ── Windows — Task Scheduler XML ──────────────────────────────────────────────
+// ── Windows — Task Scheduler (PowerShell) ─────────────────────────────────────
 
 function winTaskName(taskId: string): string {
   return `OpenSync_${taskId}`
 }
 
-function escapeXml(s: string): string {
-  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
-}
-
-const MONTH_ELEMS = ['', 'January', 'February', 'March', 'April', 'May', 'June',
-  'July', 'August', 'September', 'October', 'November', 'December']
-
-const DOW_ELEMS: Record<number, string> = {
-  0: 'Sunday', 1: 'Monday', 2: 'Tuesday', 3: 'Wednesday',
-  4: 'Thursday', 5: 'Friday', 6: 'Saturday',
-}
-
-function nextStartBoundary(h: string, m: string): string {
-  const d = new Date()
-  d.setHours(parseInt(h), parseInt(m), 0, 0)
-  if (d <= new Date()) d.setDate(d.getDate() + 1)
-  return d.toISOString().slice(0, 16)
-}
-
-function cronToTriggerXml(cron: string): string {
+function cronToPsTask(cron: string, taskName: string, runnerPath: string): string {
   const [minE, hourE, domE, monthE, dowE] = cron.trim().split(/\s+/)
+  const pad = (s: string) => s.padStart(2, '0')
+  const safeRunner = runnerPath.replace(/'/g, "''")
+  const safeName = taskName.replace(/'/g, "''")
 
-  // Every N minutes
+  const triggerExprs: string[] = []
+
   if (/^\*\/(\d+)$/.test(minE) && hourE === '*' && domE === '*' && monthE === '*' && dowE === '*') {
-    const n = minE.slice(2)
-    const now = new Date(); now.setSeconds(0, 0)
-    return `<TimeTrigger>
-      <StartBoundary>${now.toISOString().slice(0, 16)}</StartBoundary>
-      <Enabled>true</Enabled>
-      <Repetition>
-        <Interval>PT${n}M</Interval>
-        <StopAtDurationEnd>false</StopAtDurationEnd>
-      </Repetition>
-    </TimeTrigger>`
+    triggerExprs.push(`New-ScheduledTaskTrigger -Once -At (Get-Date) -RepetitionInterval (New-TimeSpan -Minutes ${minE.slice(2)})`)
+  } else if (/^\d+$/.test(minE) && hourE === '*' && domE === '*' && monthE === '*' && dowE === '*') {
+    triggerExprs.push(`New-ScheduledTaskTrigger -Once -At (Get-Date) -RepetitionInterval (New-TimeSpan -Hours 1)`)
+  } else if (domE === '*' && monthE === '*' && dowE === '*') {
+    for (const h of hourE.split(',')) {
+      for (const m of minE.split(',')) {
+        if (/^\d+$/.test(h) && /^\d+$/.test(m))
+          triggerExprs.push(`New-ScheduledTaskTrigger -Daily -At '${pad(h)}:${pad(m)}'`)
+      }
+    }
+  } else if (domE === '*' && monthE === '*' && /^[\d,]+$/.test(dowE)) {
+    const names = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+    const days = dowE.split(',').map(d => names[+d]).join(',')
+    for (const h of hourE.split(',')) {
+      for (const m of minE.split(',')) {
+        if (/^\d+$/.test(h) && /^\d+$/.test(m))
+          triggerExprs.push(`New-ScheduledTaskTrigger -Weekly -DaysOfWeek ${days} -At '${pad(h)}:${pad(m)}'`)
+      }
+    }
   }
 
-  // Hourly at :M
-  if (/^\d+$/.test(minE) && hourE === '*' && domE === '*' && monthE === '*' && dowE === '*') {
-    const now = new Date(); now.setSeconds(0, 0)
-    return `<TimeTrigger>
-      <StartBoundary>${now.toISOString().slice(0, 16)}</StartBoundary>
-      <Enabled>true</Enabled>
-      <Repetition>
-        <Interval>PT1H</Interval>
-        <StopAtDurationEnd>false</StopAtDurationEnd>
-      </Repetition>
-    </TimeTrigger>`
-  }
+  if (triggerExprs.length === 0)
+    triggerExprs.push(`New-ScheduledTaskTrigger -Daily -At '00:00'`)
 
-  // Daily
-  if (/^\d+$/.test(minE) && /^\d+$/.test(hourE) && domE === '*' && monthE === '*' && dowE === '*') {
-    return `<CalendarTrigger>
-      <StartBoundary>${nextStartBoundary(hourE, minE)}</StartBoundary>
-      <Enabled>true</Enabled>
-      <ScheduleByDay><DaysInterval>1</DaysInterval></ScheduleByDay>
-    </CalendarTrigger>`
-  }
+  const triggerVars = triggerExprs.map((e, i) => `$t${i} = ${e}`).join('\n')
+  const triggerArg = triggerExprs.length === 1 ? '$t0' : `@(${triggerExprs.map((_, i) => `$t${i}`).join(', ')})`
 
-  // Weekly
-  if (/^\d+$/.test(minE) && /^\d+$/.test(hourE) && domE === '*' && monthE === '*' && /^[\d,]+$/.test(dowE)) {
-    const days = dowE.split(',').map(d => `<${DOW_ELEMS[+d]} />`).join('')
-    return `<CalendarTrigger>
-      <StartBoundary>${nextStartBoundary(hourE, minE)}</StartBoundary>
-      <Enabled>true</Enabled>
-      <ScheduleByWeek>
-        <WeeksInterval>1</WeeksInterval>
-        <DaysOfWeek>${days}</DaysOfWeek>
-      </ScheduleByWeek>
-    </CalendarTrigger>`
-  }
-
-  // Monthly
-  if (/^\d+$/.test(minE) && /^\d+$/.test(hourE) && /^\d+$/.test(domE) && monthE === '*' && dowE === '*') {
-    const allMonths = MONTH_ELEMS.slice(1).map(m => `<${m} />`).join('')
-    return `<CalendarTrigger>
-      <StartBoundary>${nextStartBoundary(hourE, minE)}</StartBoundary>
-      <Enabled>true</Enabled>
-      <ScheduleByMonth>
-        <DaysOfMonth><Day>${domE}</Day></DaysOfMonth>
-        <Months>${allMonths}</Months>
-      </ScheduleByMonth>
-    </CalendarTrigger>`
-  }
-
-  // Yearly
-  if (/^\d+$/.test(minE) && /^\d+$/.test(hourE) && /^\d+$/.test(domE) && /^\d+$/.test(monthE) && dowE === '*') {
-    return `<CalendarTrigger>
-      <StartBoundary>${nextStartBoundary(hourE, minE)}</StartBoundary>
-      <Enabled>true</Enabled>
-      <ScheduleByMonth>
-        <DaysOfMonth><Day>${domE}</Day></DaysOfMonth>
-        <Months><${MONTH_ELEMS[+monthE]} /></Months>
-      </ScheduleByMonth>
-    </CalendarTrigger>`
-  }
-
-  // Fallback: daily at midnight tomorrow
-  const tomorrow = new Date()
-  tomorrow.setDate(tomorrow.getDate() + 1)
-  tomorrow.setHours(0, 0, 0, 0)
-  return `<CalendarTrigger>
-    <StartBoundary>${tomorrow.toISOString().slice(0, 16)}</StartBoundary>
-    <Enabled>true</Enabled>
-    <ScheduleByDay><DaysInterval>1</DaysInterval></ScheduleByDay>
-  </CalendarTrigger>`
+  return [
+    triggerVars,
+    `$a = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument '-NonInteractive -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File "${safeRunner}"'`,
+    `$s = New-ScheduledTaskSettingsSet -StartWhenAvailable -MultipleInstances IgnoreNew -ExecutionTimeLimit (New-TimeSpan -Hours 4) -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -Hidden`,
+    `Unregister-ScheduledTask -TaskName '${safeName}' -Confirm:$false -ErrorAction SilentlyContinue`,
+    `Register-ScheduledTask -TaskName '${safeName}' -Trigger ${triggerArg} -Action $a -Settings $s -Force`,
+  ].join('\n')
 }
 
-function writeWinRunnerScript(task: SyncTask, rclone: string, argsStr: string, logPath: string): string {
-  const batPath = logPath.replace(/\.log$/, '.bat')
+function writeWinRunnerScript(task: SyncTask, rclone: string, args: string[], logPath: string): string {
+  const ps1Path = logPath.replace(/\.log$/, '.ps1')
   const sepIdx = Math.max(logPath.lastIndexOf('/'), logPath.lastIndexOf('\\'))
   const logsDir = logPath.substring(0, sepIdx)
+  const psq = (s: string) => `'${s.replace(/'/g, "''")}'`
 
   const successCmds = (task.webhooks ?? [])
     .filter(wh => wh.trigger === 'success')
-    .map(wh => `  ${winCurlCmd(wh)}`)
-    .join('\r\n') || '  rem no success webhooks'
+    .map(wh => psWebhookCmd(wh))
+    .join('\n') || '  # no success webhooks'
 
   const errorCmds = (task.webhooks ?? [])
     .filter(wh => wh.trigger === 'error')
-    .map(wh => `  ${winCurlCmd(wh)}`)
-    .join('\r\n') || '  rem no error webhooks'
+    .map(wh => psWebhookCmd(wh))
+    .join('\n') || '  # no error webhooks'
 
-  const bat = [
-    '@echo off',
-    `if not exist "${logsDir}" mkdir "${logsDir}"`,
-    `"${rclone}" ${argsStr} > "${logPath}" 2>&1`,
-    'set RC=%ERRORLEVEL%',
-    'if %RC%==0 (',
+  const script = [
+    `if (-not (Test-Path ${psq(logsDir)})) { New-Item -ItemType Directory -Path ${psq(logsDir)} -Force | Out-Null }`,
+    `[IO.File]::WriteAllText(${psq(logPath)}, '')`,
+    `& ${psq(rclone)} ${[...args, '--log-file', logPath].map(psq).join(' ')}`,
+    `$rc = $LASTEXITCODE`,
+    `if ($rc -eq 0) {`,
     successCmds,
-    ') else (',
+    `} else {`,
     errorCmds,
-    ')',
-    'exit /b %RC%',
-  ].join('\r\n')
+    `}`,
+    `exit $rc`,
+  ].join('\n')
 
-  writeFileSync(batPath, bat, { encoding: 'utf-8' })
-  return batPath
-}
-
-function buildTaskXml(task: SyncTask, batPath: string): string {
-  const cmdArgs = `/c "${batPath}"`
-
-  return `<?xml version="1.0" encoding="UTF-16"?>
-<Task version="1.2" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
-  <RegistrationInfo>
-    <Description>OpenSync: ${escapeXml(task.name)}</Description>
-  </RegistrationInfo>
-  <Triggers>
-    ${cronToTriggerXml(task.schedule!)}
-  </Triggers>
-  <Settings>
-    <MultipleInstancesPolicy>IgnoreNew</MultipleInstancesPolicy>
-    <DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries>
-    <StopIfGoingOnBatteries>false</StopIfGoingOnBatteries>
-    <ExecutionTimeLimit>PT4H</ExecutionTimeLimit>
-    <Enabled>true</Enabled>
-    <Hidden>true</Hidden>
-  </Settings>
-  <Actions Context="Author">
-    <Exec>
-      <Command>cmd.exe</Command>
-      <Arguments>${escapeXml(cmdArgs)}</Arguments>
-    </Exec>
-  </Actions>
-</Task>`
+  writeFileSync(ps1Path, script, { encoding: 'utf-8' })
+  return ps1Path
 }
 
 function winRegister(task: SyncTask, logPath: string): void {
   const taskName = winTaskName(task.id)
   const rclone = findRclonePath()
   const args = [...buildRcloneArgs(task), '--use-json-log', '--verbose']
-  const argsStr = args.map(a => {
-    if (a.startsWith('--')) return a
-    return a.includes(' ') ? `"${a.replace(/"/g, '\\"')}"` : a
-  }).join(' ')
-  const batPath = writeWinRunnerScript(task, rclone, argsStr, logPath)
-  const xml = buildTaskXml(task, batPath)
-  const tmpPath = join(tmpdir(), `opensync_${task.id}.xml`)
+  const runnerPath = writeWinRunnerScript(task, rclone, args, logPath)
+  const regPsPath = join(tmpdir(), `opensync_${task.id}.ps1`)
   try {
-    writeFileSync(tmpPath, xml, { encoding: 'utf16le' })
-    spawnSync('schtasks', ['/delete', '/tn', taskName, '/f'], { encoding: 'utf-8' })
-    spawnSync('schtasks', ['/create', '/tn', taskName, '/xml', tmpPath, '/f'], { encoding: 'utf-8' })
+    writeFileSync(regPsPath, cronToPsTask(task.schedule!, taskName, runnerPath), { encoding: 'utf-8' })
+    const result = spawnSync('powershell.exe', [
+      '-NonInteractive', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', regPsPath,
+    ], { encoding: 'utf-8' })
+    if (result.status !== 0) {
+      console.error('[scheduler] task registration failed:', result.stderr || result.stdout)
+    }
   } finally {
-    try { unlinkSync(tmpPath) } catch { /* ignore */ }
+    try { unlinkSync(regPsPath) } catch { /* ignore */ }
   }
 }
 
 function winUnregister(taskId: string, userDataPath?: string): void {
   spawnSync('schtasks', ['/delete', '/tn', winTaskName(taskId), '/f'], { encoding: 'utf-8' })
   if (userDataPath) {
-    const batPath = join(userDataPath, 'logs', `${taskId}.bat`)
-    try { unlinkSync(batPath) } catch { /* ignore */ }
+    const ps1Path = join(userDataPath, 'logs', `${taskId}.ps1`)
+    try { unlinkSync(ps1Path) } catch { /* ignore */ }
   }
 }
 
@@ -335,7 +248,7 @@ function winListManagedIds(): string[] {
   return r.stdout
     .split('\n')
     .flatMap(l => {
-      const m = l.match(/"OpenSync_([a-f0-9-]+)"/)
+      const m = l.match(/"\\?OpenSync_([a-f0-9-]+)"/)
       return m ? [m[1]] : []
     })
 }
